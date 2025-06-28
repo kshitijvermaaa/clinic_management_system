@@ -57,15 +57,11 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
     instructions: '',
     date_sent: new Date().toISOString().split('T')[0],
     expected_date: '',
-    cost: '',
     notes: '',
-    // Enhanced cost breakdown fields
-    material_cost: '',
-    labor_cost: '',
-    equipment_cost: '',
-    overhead_cost: '',
-    profit_margin: '',
-    total_cost: ''
+    // Simplified cost tracking fields
+    total_cost: '',
+    total_paid: '',
+    balance_remaining: ''
   });
 
   // Pre-populate selectedPatient when form opens with initialPatientId
@@ -102,26 +98,20 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
       setFormData(prev => ({ ...prev, [field]: value }));
     }
     
-    // Auto-calculate total cost when cost breakdown fields change
-    if (['material_cost', 'labor_cost', 'equipment_cost', 'overhead_cost', 'profit_margin'].includes(field)) {
-      calculateTotalCost({ ...formData, [field]: value });
+    // Auto-calculate balance when cost or paid amount changes
+    if (['total_cost', 'total_paid'].includes(field)) {
+      calculateBalance({ ...formData, [field]: value });
     }
   };
 
-  const calculateTotalCost = (data: typeof formData) => {
-    const material = parseFloat(data.material_cost) || 0;
-    const labor = parseFloat(data.labor_cost) || 0;
-    const equipment = parseFloat(data.equipment_cost) || 0;
-    const overhead = parseFloat(data.overhead_cost) || 0;
-    const profit = parseFloat(data.profit_margin) || 0;
-    
-    const subtotal = material + labor + equipment + overhead;
-    const total = subtotal + (subtotal * profit / 100);
+  const calculateBalance = (data: typeof formData) => {
+    const totalCost = parseFloat(data.total_cost) || 0;
+    const totalPaid = parseFloat(data.total_paid) || 0;
+    const balance = totalCost - totalPaid;
     
     setFormData(prev => ({ 
       ...prev, 
-      total_cost: total.toFixed(2),
-      cost: total.toFixed(2)
+      balance_remaining: balance.toFixed(2)
     }));
   };
 
@@ -207,7 +197,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
     
     try {
       const labWorkData = {
-        patient_id: selectedPatient.patient_id, // Use selectedPatient.patient_id to ensure it's valid
+        patient_id: selectedPatient.patient_id,
         treatment_id: formData.treatment_id || undefined,
         lab_type: formData.lab_type,
         lab_name: formData.lab_name,
@@ -215,7 +205,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
         instructions: formData.instructions || undefined,
         date_sent: formData.date_sent,
         expected_date: formData.expected_date || undefined,
-        cost: formData.cost ? parseFloat(formData.cost) : undefined,
+        cost: formData.total_cost ? parseFloat(formData.total_cost) : undefined,
         notes: formData.notes || undefined,
         status: 'pending' as const
       };
@@ -253,14 +243,10 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
         instructions: '',
         date_sent: new Date().toISOString().split('T')[0],
         expected_date: '',
-        cost: '',
         notes: '',
-        material_cost: '',
-        labor_cost: '',
-        equipment_cost: '',
-        overhead_cost: '',
-        profit_margin: '',
-        total_cost: ''
+        total_cost: '',
+        total_paid: '',
+        balance_remaining: ''
       });
       setUploadedFiles([]);
       setSelectedPatient(null);
@@ -292,7 +278,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
             Create Lab Work Order
           </DialogTitle>
           <DialogDescription className="text-slate-600">
-            Submit work to dental laboratory with detailed specifications and cost breakdown.
+            Submit work to dental laboratory with detailed specifications and simplified cost tracking.
           </DialogDescription>
         </div>
         
@@ -469,93 +455,16 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
             </CardContent>
           </Card>
 
-          {/* Enhanced Cost Breakdown */}
+          {/* Simplified Cost Tracking */}
           <Card className="border-0 shadow-sm bg-gradient-to-br from-yellow-50 to-slate-50">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
                 <Calculator className="w-5 h-5 text-yellow-600" />
-                Cost Breakdown & Analysis
+                Cost Tracking
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="material-cost" className="text-sm font-medium text-slate-700">Material Cost</Label>
-                  <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      id="material-cost" 
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.material_cost}
-                      onChange={(e) => handleInputChange('material_cost', e.target.value)}
-                      className="pl-9 border-slate-200 focus:border-yellow-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="labor-cost" className="text-sm font-medium text-slate-700">Labor Cost</Label>
-                  <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      id="labor-cost" 
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.labor_cost}
-                      onChange={(e) => handleInputChange('labor_cost', e.target.value)}
-                      className="pl-9 border-slate-200 focus:border-yellow-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="equipment-cost" className="text-sm font-medium text-slate-700">Equipment Cost</Label>
-                  <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      id="equipment-cost" 
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.equipment_cost}
-                      onChange={(e) => handleInputChange('equipment_cost', e.target.value)}
-                      className="pl-9 border-slate-200 focus:border-yellow-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="overhead-cost" className="text-sm font-medium text-slate-700">Overhead Cost</Label>
-                  <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input 
-                      id="overhead-cost" 
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.overhead_cost}
-                      onChange={(e) => handleInputChange('overhead_cost', e.target.value)}
-                      className="pl-9 border-slate-200 focus:border-yellow-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="profit-margin" className="text-sm font-medium text-slate-700">Profit Margin (%)</Label>
-                  <Input 
-                    id="profit-margin" 
-                    type="number"
-                    step="0.1"
-                    placeholder="0.0"
-                    value={formData.profit_margin}
-                    onChange={(e) => handleInputChange('profit_margin', e.target.value)}
-                    className="border-slate-200 focus:border-yellow-500"
-                  />
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="total-cost" className="text-sm font-medium text-slate-700">Total Cost</Label>
                   <div className="relative">
@@ -566,20 +475,60 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
                       step="0.01"
                       placeholder="0.00"
                       value={formData.total_cost}
+                      onChange={(e) => handleInputChange('total_cost', e.target.value)}
+                      className="pl-9 border-slate-200 focus:border-yellow-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="total-paid" className="text-sm font-medium text-slate-700">Total Paid</Label>
+                  <div className="relative">
+                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <Input 
+                      id="total-paid" 
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formData.total_paid}
+                      onChange={(e) => handleInputChange('total_paid', e.target.value)}
+                      className="pl-9 border-slate-200 focus:border-yellow-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="balance-remaining" className="text-sm font-medium text-slate-700">Balance Remaining</Label>
+                  <div className="relative">
+                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <Input 
+                      id="balance-remaining" 
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formData.balance_remaining}
                       readOnly
-                      className="pl-9 border-slate-200 bg-slate-50 font-semibold"
+                      className="pl-9 border-slate-200 bg-slate-50 font-semibold text-slate-700"
                     />
                   </div>
                 </div>
               </div>
 
-              {formData.total_cost && (
-                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="text-sm font-medium text-yellow-800">
-                    Cost Summary: ${formData.total_cost}
-                  </div>
-                  <div className="text-xs text-yellow-600 mt-1">
-                    Auto-calculated based on cost breakdown above
+              {formData.balance_remaining && parseFloat(formData.balance_remaining) !== 0 && (
+                <div className={`p-3 rounded-lg border ${
+                  parseFloat(formData.balance_remaining) > 0 
+                    ? 'bg-orange-50 border-orange-200' 
+                    : 'bg-green-50 border-green-200'
+                }`}>
+                  <div className={`text-sm font-medium ${
+                    parseFloat(formData.balance_remaining) > 0 
+                      ? 'text-orange-800' 
+                      : 'text-green-800'
+                  }`}>
+                    {parseFloat(formData.balance_remaining) > 0 
+                      ? `Outstanding Balance: $${formData.balance_remaining}` 
+                      : `Overpaid: $${Math.abs(parseFloat(formData.balance_remaining)).toFixed(2)}`
+                    }
                   </div>
                 </div>
               )}

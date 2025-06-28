@@ -18,11 +18,13 @@ import {
   CheckCircle,
   AlertCircle,
   PlayCircle,
-  PauseCircle
+  PauseCircle,
+  MoreVertical
 } from 'lucide-react';
 import { LabWork, useLabWork } from '@/hooks/useLabWork';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface LabWorkCardProps {
   labWork: LabWork;
@@ -35,6 +37,7 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -128,8 +131,13 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
     labWork.status !== 'completed' && 
     labWork.status !== 'delivered';
 
+  // Calculate balance for simplified cost tracking
+  const totalCost = labWork.cost || 0;
+  const totalPaid = 0; // This would come from payment records in a real implementation
+  const balanceRemaining = totalCost - totalPaid;
+
   return (
-    <Card className={`border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 ${isOverdue ? 'ring-2 ring-red-200' : ''}`}>
+    <Card className={`border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 relative ${isOverdue ? 'ring-2 ring-red-200' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -194,37 +202,66 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            {onViewFiles && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onViewFiles(labWork.id)}
-                title="View Files"
-              >
-                <FileText className="w-4 h-4" />
-              </Button>
-            )}
-            {onEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onEdit(labWork)}
-                title="Edit Lab Work"
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              title="Delete Lab Work"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+          
+          {/* Fixed Actions Menu */}
+          <div className="flex items-center gap-2">
+            <Popover open={showActions} onOpenChange={setShowActions}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  title="More Actions"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="end">
+                <div className="space-y-1">
+                  {onViewFiles && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        onViewFiles(labWork.id);
+                        setShowActions(false);
+                      }}
+                      className="w-full justify-start"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      View Files
+                    </Button>
+                  )}
+                  {onEdit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        onEdit(labWork);
+                        setShowActions(false);
+                      }}
+                      className="w-full justify-start"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      handleDelete();
+                      setShowActions(false);
+                    }}
+                    disabled={isDeleting}
+                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </CardHeader>
@@ -300,14 +337,32 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
           </div>
         )}
 
+        {/* Simplified Cost Tracking */}
         {labWork.cost && (
-          <div className="text-sm">
-            <div className="flex items-center gap-2 text-slate-600 mb-1">
-              <DollarSign className="w-3 h-3" />
-              <span className="text-xs font-medium">Cost</span>
-            </div>
-            <div className="text-slate-900 font-medium">
-              ${labWork.cost.toFixed(2)}
+          <div className="space-y-2">
+            <div className="text-sm">
+              <div className="flex items-center gap-2 text-slate-600 mb-1">
+                <DollarSign className="w-3 h-3" />
+                <span className="text-xs font-medium">Cost Summary</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="bg-blue-50 p-2 rounded">
+                  <div className="text-blue-600 font-medium">Total Cost</div>
+                  <div className="text-blue-900 font-bold">${totalCost.toFixed(2)}</div>
+                </div>
+                <div className="bg-green-50 p-2 rounded">
+                  <div className="text-green-600 font-medium">Total Paid</div>
+                  <div className="text-green-900 font-bold">${totalPaid.toFixed(2)}</div>
+                </div>
+                <div className={`p-2 rounded ${balanceRemaining > 0 ? 'bg-orange-50' : 'bg-green-50'}`}>
+                  <div className={`font-medium ${balanceRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                    Balance
+                  </div>
+                  <div className={`font-bold ${balanceRemaining > 0 ? 'text-orange-900' : 'text-green-900'}`}>
+                    ${Math.abs(balanceRemaining).toFixed(2)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

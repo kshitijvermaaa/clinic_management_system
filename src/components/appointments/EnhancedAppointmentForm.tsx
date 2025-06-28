@@ -7,10 +7,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { VisualTeethSelector } from './VisualTeethSelector';
-import { CalendarDays, Clock, User, Phone, FileText, Stethoscope, AlertTriangle, Heart, Bluetooth as Tooth } from 'lucide-react';
+import { useHolidays } from '@/hooks/useHolidays';
+import { CalendarDays, Clock, User, Phone, FileText, Stethoscope, AlertTriangle, Heart, Bluetooth as Tooth, CalendarX } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface ToothSelection {
   tooth: string;
@@ -24,13 +28,14 @@ interface EnhancedAppointmentFormProps {
 
 export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
+  const { isDateDisabledForAppointments, getHolidayForDate } = useHolidays();
   const [selectedTeeth, setSelectedTeeth] = useState<ToothSelection[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>();
   const [formData, setFormData] = useState({
     patientName: '',
     patientId: '',
     phone: '',
     email: '',
-    date: '',
     time: '',
     appointmentType: '',
     patientComplaint: '',
@@ -47,19 +52,41 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!selectedDate) {
+      toast({
+        title: "Error",
+        description: "Please select an appointment date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if the selected date is a holiday that disables appointments
+    if (isDateDisabledForAppointments(selectedDate)) {
+      const holiday = getHolidayForDate(selectedDate);
+      toast({
+        title: "Date Not Available",
+        description: `${format(selectedDate, 'PPP')} is a clinic holiday (${holiday?.holiday_name}). Please select a different date.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
       title: "Appointment Scheduled Successfully! 🎉",
-      description: `New appointment for ${formData.patientName} has been scheduled for ${formData.date} at ${formData.time}.`,
+      description: `New appointment for ${formData.patientName} has been scheduled for ${format(selectedDate, 'PPP')} at ${formData.time}.`,
     });
     onOpenChange(false);
     // Reset form
     setFormData({
-      patientName: '', patientId: '', phone: '', email: '', date: '', time: '',
+      patientName: '', patientId: '', phone: '', email: '', time: '',
       appointmentType: '', patientComplaint: '', doctorAnalysis: '', treatmentDetails: '',
       treatmentNotes: '', painLevel: '', urgency: '', isFollowUp: false, 
       previousTreatment: '', allergies: '', medications: ''
     });
     setSelectedTeeth([]);
+    setSelectedDate(undefined);
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -80,6 +107,22 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
       case 'emergency': return 'bg-red-100 text-red-700';
       default: return 'bg-slate-100 text-slate-700';
     }
+  };
+
+  // Check if a date should be disabled
+  const isDateDisabled = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Disable past dates
+    if (date < today) return true;
+    
+    // Disable weekends
+    const day = date.getDay();
+    if (day === 0 || day === 6) return true;
+    
+    // Disable full-day holidays
+    return isDateDisabledForAppointments(date);
   };
 
   return (
@@ -153,7 +196,7 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
             </CardContent>
           </Card>
 
-          {/* Appointment Scheduling */}
+          {/* Appointment Scheduling with Holiday Integration */}
           <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-slate-50">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
@@ -161,61 +204,150 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
                 Appointment Schedule
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="appointment-date" className="text-sm font-medium text-slate-700">Date *</Label>
-                <Input 
-                  id="appointment-date" 
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleInputChange('date', e.target.value)}
-                  required 
-                  className="border-slate-200 focus:border-green-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="appointment-time" className="text-sm font-medium text-slate-700">Time *</Label>
-                <Input 
-                  id="appointment-time" 
-                  type="time"
-                  value={formData.time}
-                  onChange={(e) => handleInputChange('time', e.target.value)}
-                  required 
-                  className="border-slate-200 focus:border-green-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="urgency" className="text-sm font-medium text-slate-700">Urgency Level</Label>
-                <Select value={formData.urgency} onValueChange={(value) => handleInputChange('urgency', value)}>
-                  <SelectTrigger className="border-slate-200 focus:border-green-500">
-                    <SelectValue placeholder="Select urgency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="routine">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        Routine
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal border-slate-200 focus:border-green-500"
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, 'PPP') : 'Select appointment date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        disabled={isDateDisabled}
+                        initialFocus
+                        modifiers={{
+                          holiday: (date) => {
+                            const holiday = getHolidayForDate(date);
+                            return !!holiday;
+                          },
+                          disabled_holiday: (date) => isDateDisabledForAppointments(date)
+                        }}
+                        modifiersStyles={{
+                          holiday: { 
+                            backgroundColor: '#fef3c7', 
+                            color: '#d97706',
+                            fontWeight: 'bold'
+                          },
+                          disabled_holiday: {
+                            backgroundColor: '#fee2e2',
+                            color: '#dc2626',
+                            textDecoration: 'line-through'
+                          }
+                        }}
+                        components={{
+                          Day: ({ date, ...props }) => {
+                            const holiday = getHolidayForDate(date);
+                            return (
+                              <div {...props} className="relative">
+                                <div>{date.getDate()}</div>
+                                {holiday && (
+                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
+                                    <div className={`w-1 h-1 rounded-full ${
+                                      holiday.is_half_day ? 'bg-orange-500' : 'bg-red-500'
+                                    }`}></div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                        }}
+                      />
+                      <div className="p-3 border-t border-slate-200 bg-slate-50">
+                        <div className="text-xs text-slate-600 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                            <span>Half-day holiday (appointments allowed)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                            <span>Full-day holiday (appointments disabled)</span>
+                          </div>
+                        </div>
                       </div>
-                    </SelectItem>
-                    <SelectItem value="urgent">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        Urgent
+                    </PopoverContent>
+                  </Popover>
+                  
+                  {/* Holiday Notice */}
+                  {selectedDate && getHolidayForDate(selectedDate) && (
+                    <div className={`p-3 rounded-lg border ${
+                      isDateDisabledForAppointments(selectedDate)
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-orange-50 border-orange-200'
+                    }`}>
+                      <div className={`flex items-center gap-2 text-sm font-medium ${
+                        isDateDisabledForAppointments(selectedDate)
+                          ? 'text-red-800'
+                          : 'text-orange-800'
+                      }`}>
+                        <CalendarX className="w-4 h-4" />
+                        Holiday Notice: {getHolidayForDate(selectedDate)?.holiday_name}
                       </div>
-                    </SelectItem>
-                    <SelectItem value="emergency">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        Emergency
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {formData.urgency && (
-                  <Badge className={getUrgencyColor(formData.urgency)}>
-                    {formData.urgency.charAt(0).toUpperCase() + formData.urgency.slice(1)}
-                  </Badge>
-                )}
+                      {isDateDisabledForAppointments(selectedDate) && (
+                        <div className="text-xs text-red-600 mt-1">
+                          Appointments are not available on this date. Please select a different date.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="appointment-time" className="text-sm font-medium text-slate-700">Time *</Label>
+                    <Input 
+                      id="appointment-time" 
+                      type="time"
+                      value={formData.time}
+                      onChange={(e) => handleInputChange('time', e.target.value)}
+                      required 
+                      className="border-slate-200 focus:border-green-500"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="urgency" className="text-sm font-medium text-slate-700">Urgency Level</Label>
+                    <Select value={formData.urgency} onValueChange={(value) => handleInputChange('urgency', value)}>
+                      <SelectTrigger className="border-slate-200 focus:border-green-500">
+                        <SelectValue placeholder="Select urgency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="routine">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            Routine
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="urgent">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                            Urgent
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="emergency">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                            Emergency
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {formData.urgency && (
+                      <Badge className={getUrgencyColor(formData.urgency)}>
+                        {formData.urgency.charAt(0).toUpperCase() + formData.urgency.slice(1)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -309,7 +441,7 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
             </CardContent>
           </Card>
 
-          {/* Step 3: Visual Teeth Selector (Replaced Image Upload) */}
+          {/* Step 3: Visual Teeth Selector */}
           <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-slate-50">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
