@@ -7,16 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { CreditCard, Plus, Receipt, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-
-interface Payment {
-  id: string;
-  amount: number;
-  payment_date: string;
-  payment_method: string;
-  treatment_id?: string;
-  notes?: string;
-}
+import { usePayments } from '@/hooks/usePayments';
 
 interface PaymentHistoryProps {
   patientId: string;
@@ -24,8 +15,13 @@ interface PaymentHistoryProps {
 
 export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => {
   const { toast } = useToast();
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [totalBalance, setTotalBalance] = useState(0);
+  const { addPayment, getPaymentsByPatient, getPaymentSummaryForPatient } = usePayments();
+  const [patientPayments, setPatientPayments] = useState<any[]>([]);
+  const [paymentSummary, setPaymentSummary] = useState({
+    totalCost: 0,
+    totalPaid: 0,
+    balance: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newPayment, setNewPayment] = useState({
@@ -42,28 +38,14 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     try {
       setIsLoading(true);
       
-      // Calculate total treatment costs
-      const { data: treatments, error: treatmentError } = await supabase
-        .from('treatments')
-        .select('treatment_cost')
-        .eq('patient_id', patientId);
-
-      if (treatmentError) {
-        console.error('Error fetching treatments:', treatmentError);
-        return;
-      }
-
-      const totalCost = treatments?.reduce((sum, treatment) => sum + (treatment.treatment_cost || 0), 0) || 0;
+      // Get payment summary and patient payments
+      const [summary, payments] = await Promise.all([
+        getPaymentSummaryForPatient(patientId),
+        getPaymentsByPatient(patientId)
+      ]);
       
-      // For now, we'll simulate payment data since the payments table doesn't exist yet
-      // In a real implementation, you'd create a payments table
-      const mockPayments: Payment[] = [];
-      
-      const totalPaid = mockPayments.reduce((sum, payment) => sum + payment.amount, 0);
-      const balance = totalCost - totalPaid;
-      
-      setPayments(mockPayments);
-      setTotalBalance(balance);
+      setPaymentSummary(summary);
+      setPatientPayments(payments);
       
     } catch (error) {
       console.error('Error fetching payment data:', error);
@@ -88,24 +70,25 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     }
 
     try {
-      // In a real implementation, you'd save to a payments table
-      const payment: Payment = {
-        id: Date.now().toString(),
+      const paymentData = {
+        patient_id: patientId,
         amount: parseFloat(newPayment.amount),
         payment_date: new Date().toISOString().split('T')[0],
         payment_method: newPayment.paymentMethod,
         notes: newPayment.notes
       };
 
-      setPayments(prev => [payment, ...prev]);
-      setTotalBalance(prev => prev - payment.amount);
+      await addPayment(paymentData);
+      
+      // Refresh payment data
+      await fetchPaymentData();
       
       setNewPayment({ amount: '', paymentMethod: 'cash', notes: '' });
       setIsDialogOpen(false);
       
       toast({
         title: "Payment Added",
-        description: `Payment of ₹${payment.amount} has been recorded.`,
+        description: `Payment of ₹${paymentData.amount} has been recorded.`,
       });
       
     } catch (error) {
@@ -212,10 +195,10 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-600">Outstanding Balance</span>
+                <span className="text-sm font-medium text-blue-600">Total Cost</span>
               </div>
               <div className="text-2xl font-bold text-blue-900">
-                ₹{totalBalance.toLocaleString()}
+                ₹{paymentSummary.totalCost.toLocaleString()}
               </div>
             </div>
             <div className="p-4 bg-green-50 rounded-lg">
@@ -224,16 +207,19 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                 <span className="text-sm font-medium text-green-600">Total Paid</span>
               </div>
               <div className="text-2xl font-bold text-green-900">
-                ₹{payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                ₹{paymentSummary.totalPaid.toLocaleString()}
               </div>
             </div>
-            <div className="p-4 bg-slate-50 rounded-lg">
+            <div className="p-4 bg-orange-50 rounded-lg">
               <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-slate-600" />
-                <span className="text-sm font-medium text-slate-600">Payment Status</span>
+                <CreditCard className="w-4 h-4 text-orange-600" />
+                <span className="text-sm font-medium text-orange-600">Outstanding Balance</span>
               </div>
-              <Badge className={totalBalance > 0 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}>
-                {totalBalance > 0 ? 'Pending' : 'Paid'}
+              <div className="text-2xl font-bold text-orange-900">
+                ₹{paymentSummary.balance.toLocaleString()}
+              </div>
+              <Badge className={paymentSummary.balance > 0 ? 'bg-orange-100 text-orange-700 mt-2' : 'bg-green-100 text-green-700 mt-2'}>
+                {paymentSummary.balance > 0 ? 'Pending' : 'Paid'}
               </Badge>
             </div>
           </div>
@@ -241,12 +227,12 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
           {/* Payment History */}
           <div className="space-y-2">
             <h4 className="font-medium text-slate-900">Recent Payments</h4>
-            {payments.length === 0 ? (
+            {patientPayments.length === 0 ? (
               <div className="text-center py-4 text-slate-500">
                 <p>No payments recorded yet</p>
               </div>
             ) : (
-              payments.map((payment) => (
+              patientPayments.map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">

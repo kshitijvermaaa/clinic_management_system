@@ -263,8 +263,7 @@ const PatientRecord = () => {
   };
 
   const handleEditLabWork = (labWork: any) => {
-    // For now, we'll just show a toast. In a full implementation, 
-    // you'd open an edit form with the lab work data pre-filled
+    // The edit functionality is now handled within the LabWorkCard component
     console.log('Edit lab work:', labWork);
   };
 
@@ -563,7 +562,7 @@ const PatientRecord = () => {
                   <Label className="text-sm font-medium text-slate-600">Balance</Label>
                   <p className="mt-1 text-slate-900 flex items-center gap-1">
                     <DollarSign className="w-4 h-4" />
-                    ${patient.balance || 0}
+                    ₹{patient.balance || 0}
                   </p>
                 </div>
               </div>
@@ -681,7 +680,7 @@ const PatientRecord = () => {
                         )}
                         {treatment.treatment_cost && (
                           <p className="text-sm text-slate-600 mb-1">
-                            <strong>Cost:</strong> ${treatment.treatment_cost}
+                            <strong>Cost:</strong> ₹{treatment.treatment_cost}
                           </p>
                         )}
                         {treatment.teeth_involved && treatment.teeth_involved.length > 0 && (
