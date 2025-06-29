@@ -30,11 +30,13 @@ import {
   Filter,
   CheckCircle,
   PlayCircle,
-  PauseCircle
+  PauseCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useLabWork } from '@/hooks/useLabWork';
+import { usePayments } from '@/hooks/usePayments';
 
 interface Patient {
   id: string;
@@ -82,7 +84,8 @@ const PatientRecord = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getLabWorkByPatient } = useLabWork();
+  const { getLabWorkByPatient, refreshLabWork } = useLabWork();
+  const { getPaymentSummaryForPatient, refreshPayments } = usePayments();
   
   const patientId = searchParams.get('patient');
   
@@ -90,7 +93,9 @@ const PatientRecord = () => {
   const [treatments, setTreatments] = useState<Treatment[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patientLabWork, setPatientLabWork] = useState<any[]>([]);
+  const [paymentSummary, setPaymentSummary] = useState({ totalCost: 0, totalPaid: 0, balance: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPatient, setEditedPatient] = useState<Partial<Patient>>({});
   const [showLabWorkForm, setShowLabWorkForm] = useState(false);
@@ -158,8 +163,11 @@ const PatientRecord = () => {
         setAppointments(appointmentsData || []);
       }
 
-      // Fetch lab work with real-time updates
-      await fetchLabWork();
+      // Fetch lab work and payment summary
+      await Promise.all([
+        fetchLabWork(),
+        fetchPaymentSummary()
+      ]);
 
     } catch (error) {
       console.error('Error in fetchPatientData:', error);
@@ -179,6 +187,41 @@ const PatientRecord = () => {
       setPatientLabWork(labWorkData);
     } catch (error) {
       console.error('Error fetching lab work:', error);
+    }
+  };
+
+  const fetchPaymentSummary = async () => {
+    try {
+      const summary = await getPaymentSummaryForPatient(patientId!);
+      setPaymentSummary(summary);
+    } catch (error) {
+      console.error('Error fetching payment summary:', error);
+    }
+  };
+
+  const handleRefreshData = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchLabWork(),
+        fetchPaymentSummary(),
+        refreshLabWork(),
+        refreshPayments()
+      ]);
+      
+      toast({
+        title: "Data Refreshed",
+        description: "All patient data has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -273,7 +316,10 @@ const PatientRecord = () => {
 
   // Function to refresh lab work data after changes
   const handleLabWorkChange = async () => {
-    await fetchLabWork();
+    await Promise.all([
+      fetchLabWork(),
+      fetchPaymentSummary()
+    ]);
   };
 
   const calculateAge = (dateOfBirth: string) => {
@@ -373,6 +419,15 @@ const PatientRecord = () => {
           <div className="flex gap-3">
             <Button
               variant="outline"
+              onClick={handleRefreshData}
+              disabled={isRefreshing}
+              className="border-slate-300 hover:bg-slate-50"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => navigate(`/in-patient-treatment?patient=${patient.patient_id}&name=${encodeURIComponent(patient.full_name)}`)}
             >
               <Stethoscope className="w-4 h-4 mr-2" />
@@ -387,7 +442,7 @@ const PatientRecord = () => {
           </div>
         </div>
 
-        {/* Patient Info Card */}
+        {/* Patient Info Card with Enhanced Balance Display */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -521,6 +576,43 @@ const PatientRecord = () => {
               </div>
             </div>
 
+            {/* Enhanced Balance Section */}
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Financial Summary</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-600">Total Cost</span>
+                  </div>
+                  <div className="text-2xl font-bold text-blue-900">
+                    ₹{paymentSummary.totalCost.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-600">Total Paid</span>
+                  </div>
+                  <div className="text-2xl font-bold text-green-900">
+                    ₹{paymentSummary.totalPaid.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-orange-600" />
+                    <span className="text-sm font-medium text-orange-600">Outstanding Balance</span>
+                  </div>
+                  <div className="text-2xl font-bold text-orange-900">
+                    ₹{paymentSummary.balance.toLocaleString()}
+                  </div>
+                  <Badge className={paymentSummary.balance > 0 ? 'bg-orange-100 text-orange-700 mt-2' : 'bg-green-100 text-green-700 mt-2'}>
+                    {paymentSummary.balance > 0 ? 'Outstanding' : 'Paid'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
             {/* Medical Information */}
             <div className="mt-6 pt-6 border-t border-slate-200">
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Medical Information</h3>
@@ -565,14 +657,6 @@ const PatientRecord = () => {
                   ) : (
                     <p className="mt-1 text-slate-900">{patient.emergency_contact || 'Not provided'}</p>
                   )}
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium text-slate-600">Balance</Label>
-                  <p className="mt-1 text-slate-900 flex items-center gap-1">
-                    <DollarSign className="w-4 h-4" />
-                    ₹{patient.balance || 0}
-                  </p>
                 </div>
               </div>
             </div>

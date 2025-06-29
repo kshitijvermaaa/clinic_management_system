@@ -51,6 +51,7 @@ export interface LabWorkPayment {
 export const useLabWork = () => {
   const [labWork, setLabWork] = useState<LabWork[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [updateTrigger, setUpdateTrigger] = useState(0);
   const { toast } = useToast();
 
   const fetchLabWork = async () => {
@@ -119,6 +120,12 @@ export const useLabWork = () => {
 
       // Update local state immediately with the new lab work
       setLabWork(prev => [data, ...prev]);
+      
+      // Trigger a refresh to ensure consistency
+      setTimeout(() => {
+        setUpdateTrigger(prev => prev + 1);
+      }, 100);
+
       return data;
     } catch (error) {
       console.error('Error in createLabWork:', error);
@@ -129,6 +136,7 @@ export const useLabWork = () => {
   const updateLabWork = async (labWorkId: string, updates: Partial<LabWork>) => {
     try {
       // Update local state immediately for real-time UI updates (optimistic update)
+      const originalLabWork = [...labWork];
       setLabWork(prev => prev.map(work => 
         work.id === labWorkId ? { ...work, ...updates } : work
       ));
@@ -153,7 +161,7 @@ export const useLabWork = () => {
       if (error) {
         console.error('Error updating lab work:', error);
         // Revert the optimistic update on error
-        await fetchLabWork();
+        setLabWork(originalLabWork);
         throw error;
       }
 
@@ -161,6 +169,11 @@ export const useLabWork = () => {
       setLabWork(prev => prev.map(work => 
         work.id === labWorkId ? data : work
       ));
+
+      // Force a re-render to ensure UI consistency
+      setTimeout(() => {
+        setUpdateTrigger(prev => prev + 1);
+      }, 100);
 
       return data;
     } catch (error) {
@@ -189,7 +202,11 @@ export const useLabWork = () => {
         throw error;
       }
 
-      // No need to fetch again since we already updated locally and it was successful
+      // Force a re-render to ensure UI consistency
+      setTimeout(() => {
+        setUpdateTrigger(prev => prev + 1);
+      }, 100);
+
     } catch (error) {
       console.error('Error in deleteLabWork:', error);
       throw error;
@@ -310,15 +327,14 @@ export const useLabWork = () => {
     }
   };
 
-  // New function to add payment for lab work
+  // Enhanced function to add payment for lab work
   const addLabWorkPayment = async (labWorkId: string, paymentData: {
     amount_paid: number;
     payment_method: string;
     notes?: string;
   }) => {
     try {
-      // First, create the payment record in a payments table (we'll need to create this)
-      // For now, we'll store payment info in localStorage as a temporary solution
+      // Store payment info in localStorage with better structure
       const payments = JSON.parse(localStorage.getItem('lab_work_payments') || '{}');
       const paymentId = `payment_${Date.now()}`;
       
@@ -391,9 +407,15 @@ export const useLabWork = () => {
     }
   };
 
+  // Function to force refresh lab work data
+  const refreshLabWork = async () => {
+    await fetchLabWork();
+    setUpdateTrigger(prev => prev + 1);
+  };
+
   useEffect(() => {
     fetchLabWork();
-  }, []);
+  }, [updateTrigger]);
 
   return {
     labWork,
@@ -409,5 +431,6 @@ export const useLabWork = () => {
     addLabWorkPayment,
     getLabWorkPayment,
     updateLabWorkPayment,
+    refreshLabWork,
   };
 };

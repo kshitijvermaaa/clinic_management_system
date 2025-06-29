@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { CreditCard, Plus, Receipt, Calendar, Edit, Trash2, Save, X } from 'lucide-react';
+import { CreditCard, Plus, Receipt, Calendar, Edit, Trash2, Save, X, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePayments } from '@/hooks/usePayments';
 
@@ -17,7 +17,7 @@ interface PaymentHistoryProps {
 
 export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => {
   const { toast } = useToast();
-  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient } = usePayments();
+  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient, refreshPayments } = usePayments();
   const [patientPayments, setPatientPayments] = useState<any[]>([]);
   const [paymentSummary, setPaymentSummary] = useState({
     totalCost: 0,
@@ -25,6 +25,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     balance: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [newPayment, setNewPayment] = useState({
@@ -62,6 +63,28 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     }
   };
 
+  const handleRefreshData = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshPayments();
+      await fetchPaymentData();
+      
+      toast({
+        title: "Data Refreshed",
+        description: "Payment data has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error refreshing payment data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh payment data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleAddPayment = async () => {
     if (!newPayment.amount || parseFloat(newPayment.amount) <= 0) {
       toast({
@@ -83,7 +106,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
 
       await addPayment(paymentData);
       
-      // Refresh payment data
+      // Refresh payment data immediately
       await fetchPaymentData();
       
       setNewPayment({ amount: '', paymentMethod: 'cash', notes: '' });
@@ -133,7 +156,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
 
       await updatePayment(editingPayment.id, updates);
       
-      // Refresh payment data
+      // Refresh payment data immediately
       await fetchPaymentData();
       
       setNewPayment({ amount: '', paymentMethod: 'cash', notes: '' });
@@ -163,7 +186,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     try {
       await deletePayment(paymentId);
       
-      // Refresh payment data
+      // Refresh payment data immediately
       await fetchPaymentData();
       
       toast({
@@ -212,81 +235,92 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
               Track payments and outstanding balance
             </CardDescription>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-green-600 hover:bg-green-700" onClick={() => setEditingPayment(null)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Payment
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingPayment ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
-                <DialogDescription>
-                  {editingPayment ? 'Update payment record for this patient' : 'Add a new payment record for this patient'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (₹)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    value={newPayment.amount}
-                    onChange={(e) => setNewPayment(prev => ({ ...prev, amount: e.target.value }))}
-                    placeholder="0.00"
-                  />
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefreshData}
+              disabled={isRefreshing}
+              size="sm"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-green-600 hover:bg-green-700" onClick={() => setEditingPayment(null)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Payment
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingPayment ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
+                  <DialogDescription>
+                    {editingPayment ? 'Update payment record for this patient' : 'Add a new payment record for this patient'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (₹)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      step="0.01"
+                      value={newPayment.amount}
+                      onChange={(e) => setNewPayment(prev => ({ ...prev, amount: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="method">Payment Method</Label>
+                    <Select
+                      value={newPayment.paymentMethod}
+                      onValueChange={(value) => setNewPayment(prev => ({ ...prev, paymentMethod: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="card">Credit/Debit Card</SelectItem>
+                        <SelectItem value="upi">UPI</SelectItem>
+                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="cheque">Cheque</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={newPayment.notes}
+                      onChange={(e) => setNewPayment(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Payment notes or reference"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={editingPayment ? handleUpdatePayment : handleAddPayment} 
+                      className="flex-1"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {editingPayment ? 'Update Payment' : 'Record Payment'}
+                    </Button>
+                    <Button variant="outline" onClick={resetDialog} className="flex-1">
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="method">Payment Method</Label>
-                  <Select
-                    value={newPayment.paymentMethod}
-                    onValueChange={(value) => setNewPayment(prev => ({ ...prev, paymentMethod: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="card">Credit/Debit Card</SelectItem>
-                      <SelectItem value="upi">UPI</SelectItem>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="cheque">Cheque</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={newPayment.notes}
-                    onChange={(e) => setNewPayment(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Payment notes or reference"
-                    rows={2}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={editingPayment ? handleUpdatePayment : handleAddPayment} 
-                    className="flex-1"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {editingPayment ? 'Update Payment' : 'Record Payment'}
-                  </Button>
-                  <Button variant="outline" onClick={resetDialog} className="flex-1">
-                    <X className="w-4 h-4 mr-2" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* Balance Summary */}
+          {/* Enhanced Balance Summary */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-2">

@@ -27,7 +27,9 @@ export const usePayments = () => {
   const fetchPayments = async () => {
     try {
       setIsLoading(true);
-      // Get payments from localStorage with proper error handling
+      
+      // Try to fetch from Supabase first (when we have a payments table)
+      // For now, use localStorage with better error handling
       const storedPayments = localStorage.getItem('patient_payments');
       if (storedPayments) {
         try {
@@ -55,6 +57,16 @@ export const usePayments = () => {
     }
   };
 
+  const savePaymentsToStorage = (paymentsData: Payment[]) => {
+    try {
+      localStorage.setItem('patient_payments', JSON.stringify(paymentsData));
+      return true;
+    } catch (error) {
+      console.error('Error saving payments to localStorage:', error);
+      return false;
+    }
+  };
+
   const addPayment = async (paymentData: Omit<Payment, 'id' | 'created_at'>) => {
     try {
       const newPayment: Payment = {
@@ -67,15 +79,18 @@ export const usePayments = () => {
       const updatedPayments = [...payments, newPayment];
       setPayments(updatedPayments);
       
-      // Persist to localStorage with error handling
-      try {
-        localStorage.setItem('patient_payments', JSON.stringify(updatedPayments));
-      } catch (storageError) {
-        console.error('Error saving to localStorage:', storageError);
+      // Persist to localStorage
+      const saved = savePaymentsToStorage(updatedPayments);
+      if (!saved) {
         // Revert local state if storage fails
         setPayments(payments);
         throw new Error('Failed to save payment data');
       }
+
+      // Force a re-render by updating the state again
+      setTimeout(() => {
+        setPayments([...updatedPayments]);
+      }, 100);
 
       return newPayment;
     } catch (error) {
@@ -93,10 +108,8 @@ export const usePayments = () => {
       setPayments(updatedPayments);
       
       // Persist to localStorage
-      try {
-        localStorage.setItem('patient_payments', JSON.stringify(updatedPayments));
-      } catch (storageError) {
-        console.error('Error saving to localStorage:', storageError);
+      const saved = savePaymentsToStorage(updatedPayments);
+      if (!saved) {
         // Revert local state if storage fails
         setPayments(payments);
         throw new Error('Failed to update payment data');
@@ -116,10 +129,8 @@ export const usePayments = () => {
       setPayments(updatedPayments);
       
       // Persist to localStorage
-      try {
-        localStorage.setItem('patient_payments', JSON.stringify(updatedPayments));
-      } catch (storageError) {
-        console.error('Error saving to localStorage:', storageError);
+      const saved = savePaymentsToStorage(updatedPayments);
+      if (!saved) {
         // Revert local state if storage fails
         setPayments(payments);
         throw new Error('Failed to delete payment data');
@@ -144,10 +155,22 @@ export const usePayments = () => {
 
       if (treatmentError) {
         console.error('Error fetching treatments:', treatmentError);
-        // Continue with payment calculation even if treatments fail
       }
 
-      const totalCost = treatments?.reduce((sum, treatment) => sum + (treatment.treatment_cost || 0), 0) || 0;
+      // Get lab work costs for this patient
+      const { data: labWork, error: labWorkError } = await supabase
+        .from('lab_work')
+        .select('cost')
+        .eq('patient_id', patientId);
+
+      if (labWorkError) {
+        console.error('Error fetching lab work:', labWorkError);
+      }
+
+      // Calculate total costs from treatments and lab work
+      const treatmentCosts = treatments?.reduce((sum, treatment) => sum + (treatment.treatment_cost || 0), 0) || 0;
+      const labWorkCosts = labWork?.reduce((sum, work) => sum + (work.cost || 0), 0) || 0;
+      const totalCost = treatmentCosts + labWorkCosts;
       
       // Get all payments for this patient
       const patientPayments = payments.filter(payment => payment.patient_id === patientId);
@@ -181,6 +204,11 @@ export const usePayments = () => {
     }
   };
 
+  // Function to refresh payments data
+  const refreshPayments = async () => {
+    await fetchPayments();
+  };
+
   useEffect(() => {
     fetchPayments();
   }, []);
@@ -195,5 +223,6 @@ export const usePayments = () => {
     getPaymentsByPatient,
     getPaymentSummaryForPatient,
     clearAllPayments,
+    refreshPayments,
   };
 };
