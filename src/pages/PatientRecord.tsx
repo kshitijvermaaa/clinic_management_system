@@ -82,7 +82,7 @@ const PatientRecord = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getLabWorkByPatient } = useLabWork();
+  const { getLabWorkByPatient, refreshLabWork } = useLabWork();
   
   const patientId = searchParams.get('patient');
   
@@ -158,13 +158,8 @@ const PatientRecord = () => {
         setAppointments(appointmentsData || []);
       }
 
-      // Fetch lab work
-      try {
-        const labWorkData = await getLabWorkByPatient(patientId);
-        setPatientLabWork(labWorkData);
-      } catch (error) {
-        console.error('Error fetching lab work:', error);
-      }
+      // Fetch lab work with payment information
+      await fetchLabWorkData();
 
     } catch (error) {
       console.error('Error in fetchPatientData:', error);
@@ -175,6 +170,15 @@ const PatientRecord = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchLabWorkData = async () => {
+    try {
+      const labWorkData = await getLabWorkByPatient(patientId!);
+      setPatientLabWork(labWorkData);
+    } catch (error) {
+      console.error('Error fetching lab work:', error);
     }
   };
 
@@ -266,6 +270,12 @@ const PatientRecord = () => {
     // For now, we'll just show a toast. In a full implementation, 
     // you'd open an edit form with the lab work data pre-filled
     console.log('Edit lab work:', labWork);
+  };
+
+  // Function to refresh lab work data when payments are updated
+  const handleLabWorkUpdate = async () => {
+    await fetchLabWorkData();
+    await refreshLabWork(); // Also refresh the global lab work state
   };
 
   const calculateAge = (dateOfBirth: string) => {
@@ -818,7 +828,13 @@ const PatientRecord = () => {
       {/* Lab Work Form Dialog */}
       <LabWorkForm 
         open={showLabWorkForm} 
-        onOpenChange={setShowLabWorkForm}
+        onOpenChange={(open) => {
+          setShowLabWorkForm(open);
+          if (!open) {
+            // Refresh lab work data when form is closed
+            handleLabWorkUpdate();
+          }
+        }}
         patientId={patient?.patient_id}
       />
 

@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Building2,
   PlayCircle,
-  TrendingUp
+  TrendingUp,
+  DollarSign
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { EnhancedLabWorkForm } from '@/components/labwork/EnhancedLabWorkForm';
@@ -26,7 +27,7 @@ import { useLabWork, LabWork as LabWorkType } from '@/hooks/useLabWork';
 
 const LabWork = () => {
   const navigate = useNavigate();
-  const { labWork, isLoading } = useLabWork();
+  const { labWork, isLoading, refreshLabWork } = useLabWork();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -68,6 +69,11 @@ const LabWork = () => {
   const completedTotal = labWork.filter(work => work.status === 'completed' || work.status === 'delivered').length;
   const completionRate = totalWork > 0 ? ((completedTotal / totalWork) * 100).toFixed(1) : '0';
 
+  // Calculate payment statistics
+  const totalValue = labWork.reduce((sum, work) => sum + (work.cost || 0), 0);
+  const totalPaid = labWork.reduce((sum, work) => sum + (work.total_paid || 0), 0);
+  const totalOutstanding = labWork.reduce((sum, work) => sum + Math.max(0, (work.balance_remaining || 0)), 0);
+
   const handleViewFiles = (labWorkId: string, labWorkTitle: string) => {
     setSelectedLabWorkId(labWorkId);
     setSelectedLabWorkTitle(labWorkTitle);
@@ -78,6 +84,10 @@ const LabWork = () => {
     // For now, we'll just show a toast. In a full implementation, 
     // you'd open an edit form with the lab work data pre-filled
     console.log('Edit lab work:', labWork);
+  };
+
+  const handleLabWorkUpdate = async () => {
+    await refreshLabWork();
   };
 
   if (isLoading) {
@@ -100,7 +110,7 @@ const LabWork = () => {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
               Lab Work Management
             </h1>
-            <p className="text-slate-600">Manage dental laboratory work orders and track progress with detailed cost analysis</p>
+            <p className="text-slate-600">Manage dental laboratory work orders and track progress with detailed payment tracking</p>
           </div>
           <Button 
             onClick={() => setShowLabWorkForm(true)}
@@ -113,7 +123,7 @@ const LabWork = () => {
         </div>
 
         {/* Enhanced Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
           <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -178,10 +188,22 @@ const LabWork = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Completion Rate</p>
-                  <p className="text-2xl font-bold text-purple-600">{completionRate}%</p>
+                  <p className="text-sm font-medium text-slate-600">Total Value</p>
+                  <p className="text-2xl font-bold text-purple-600">${totalValue.toFixed(0)}</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-purple-600" />
+                <DollarSign className="w-8 h-8 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Outstanding</p>
+                  <p className="text-2xl font-bold text-red-600">${totalOutstanding.toFixed(0)}</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-red-600" />
               </div>
             </CardContent>
           </Card>
@@ -298,7 +320,13 @@ const LabWork = () => {
       {/* Enhanced Lab Work Form Dialog */}
       <EnhancedLabWorkForm 
         open={showLabWorkForm} 
-        onOpenChange={setShowLabWorkForm} 
+        onOpenChange={(open) => {
+          setShowLabWorkForm(open);
+          if (!open) {
+            // Refresh lab work data when form is closed
+            handleLabWorkUpdate();
+          }
+        }}
       />
 
       {/* Files Dialog */}

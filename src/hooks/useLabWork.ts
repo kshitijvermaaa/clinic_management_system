@@ -26,6 +26,9 @@ export interface LabWork {
   treatments?: {
     procedure_done: string;
   };
+  // Payment information
+  total_paid?: number;
+  balance_remaining?: number;
 }
 
 export interface LabWorkFile {
@@ -46,6 +49,8 @@ export const useLabWork = () => {
   const fetchLabWork = async () => {
     try {
       setIsLoading(true);
+      
+      // Fetch lab work with payment information
       const { data, error } = await supabase
         .from('lab_work')
         .select(`
@@ -71,7 +76,44 @@ export const useLabWork = () => {
         return;
       }
 
-      setLabWork(data || []);
+      // Fetch payment information for each lab work
+      const labWorkWithPayments = await Promise.all(
+        (data || []).map(async (work) => {
+          try {
+            const { data: payments, error: paymentsError } = await supabase
+              .from('lab_work_payments')
+              .select('amount')
+              .eq('lab_work_id', work.id);
+
+            if (paymentsError) {
+              console.error('Error fetching payments for lab work:', work.id, paymentsError);
+              return {
+                ...work,
+                total_paid: 0,
+                balance_remaining: work.cost || 0
+              };
+            }
+
+            const totalPaid = payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+            const balanceRemaining = (work.cost || 0) - totalPaid;
+
+            return {
+              ...work,
+              total_paid: totalPaid,
+              balance_remaining: balanceRemaining
+            };
+          } catch (error) {
+            console.error('Error processing lab work payments:', error);
+            return {
+              ...work,
+              total_paid: 0,
+              balance_remaining: work.cost || 0
+            };
+          }
+        })
+      );
+
+      setLabWork(labWorkWithPayments);
     } catch (error) {
       console.error('Unexpected error:', error);
       toast({
@@ -84,7 +126,7 @@ export const useLabWork = () => {
     }
   };
 
-  const createLabWork = async (labWorkData: Omit<LabWork, 'id' | 'created_at' | 'updated_at' | 'patients' | 'treatments'>) => {
+  const createLabWork = async (labWorkData: Omit<LabWork, 'id' | 'created_at' | 'updated_at' | 'patients' | 'treatments' | 'total_paid' | 'balance_remaining'>) => {
     try {
       const { data, error } = await supabase
         .from('lab_work')
@@ -97,7 +139,7 @@ export const useLabWork = () => {
         throw error;
       }
 
-      await fetchLabWork();
+      await fetchLabWork(); // Refresh the list
       return data;
     } catch (error) {
       console.error('Error in createLabWork:', error);
@@ -119,7 +161,7 @@ export const useLabWork = () => {
         throw error;
       }
 
-      await fetchLabWork();
+      await fetchLabWork(); // Refresh the list
       return data;
     } catch (error) {
       console.error('Error in updateLabWork:', error);
@@ -139,7 +181,7 @@ export const useLabWork = () => {
         throw error;
       }
 
-      await fetchLabWork();
+      await fetchLabWork(); // Refresh the list
     } catch (error) {
       console.error('Error in deleteLabWork:', error);
       throw error;
@@ -150,7 +192,12 @@ export const useLabWork = () => {
     try {
       const { data, error } = await supabase
         .from('lab_work')
-        .select('*')
+        .select(`
+          *,
+          treatments:treatment_id (
+            procedure_done
+          )
+        `)
         .eq('patient_id', patientId)
         .order('date_sent', { ascending: false });
 
@@ -159,7 +206,44 @@ export const useLabWork = () => {
         throw error;
       }
 
-      return data || [];
+      // Fetch payment information for each lab work
+      const labWorkWithPayments = await Promise.all(
+        (data || []).map(async (work) => {
+          try {
+            const { data: payments, error: paymentsError } = await supabase
+              .from('lab_work_payments')
+              .select('amount')
+              .eq('lab_work_id', work.id);
+
+            if (paymentsError) {
+              console.error('Error fetching payments for lab work:', work.id, paymentsError);
+              return {
+                ...work,
+                total_paid: 0,
+                balance_remaining: work.cost || 0
+              };
+            }
+
+            const totalPaid = payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+            const balanceRemaining = (work.cost || 0) - totalPaid;
+
+            return {
+              ...work,
+              total_paid: totalPaid,
+              balance_remaining: balanceRemaining
+            };
+          } catch (error) {
+            console.error('Error processing lab work payments:', error);
+            return {
+              ...work,
+              total_paid: 0,
+              balance_remaining: work.cost || 0
+            };
+          }
+        })
+      );
+
+      return labWorkWithPayments;
     } catch (error) {
       console.error('Error in getLabWorkByPatient:', error);
       throw error;
@@ -250,6 +334,11 @@ export const useLabWork = () => {
     }
   };
 
+  // Function to refresh lab work data (useful for payment updates)
+  const refreshLabWork = async () => {
+    await fetchLabWork();
+  };
+
   useEffect(() => {
     fetchLabWork();
   }, []);
@@ -265,5 +354,6 @@ export const useLabWork = () => {
     uploadLabWorkFile,
     getLabWorkFiles,
     downloadLabWorkFile,
+    refreshLabWork,
   };
 };
