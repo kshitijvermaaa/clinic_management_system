@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +25,9 @@ import {
   PauseCircle,
   MoreVertical,
   Save,
-  X
+  X,
+  CreditCard,
+  Plus
 } from 'lucide-react';
 import { LabWork, useLabWork } from '@/hooks/useLabWork';
 import { useToast } from '@/hooks/use-toast';
@@ -39,12 +41,14 @@ interface LabWorkCardProps {
 }
 
 export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onViewFiles }) => {
-  const { deleteLabWork, updateLabWork } = useLabWork();
+  const { deleteLabWork, updateLabWork, getLabWorkPayment, addLabWorkPayment, updateLabWorkPayment } = useLabWork();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [editData, setEditData] = useState({
     lab_name: labWork.lab_name,
     work_description: labWork.work_description,
@@ -53,6 +57,32 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
     cost: labWork.cost?.toString() || '',
     notes: labWork.notes || ''
   });
+  const [paymentData, setPaymentData] = useState({
+    amount_paid: '',
+    payment_method: 'cash',
+    notes: ''
+  });
+
+  // Load payment info when component mounts
+  useEffect(() => {
+    const loadPaymentInfo = async () => {
+      try {
+        const payment = await getLabWorkPayment(labWork.id);
+        setPaymentInfo(payment);
+        if (payment) {
+          setPaymentData({
+            amount_paid: payment.amount_paid.toString(),
+            payment_method: payment.payment_method,
+            notes: payment.notes || ''
+          });
+        }
+      } catch (error) {
+        console.error('Error loading payment info:', error);
+      }
+    };
+
+    loadPaymentInfo();
+  }, [labWork.id, getLabWorkPayment]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -175,15 +205,63 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
     }
   };
 
+  const handlePaymentSave = async () => {
+    try {
+      if (!paymentData.amount_paid || parseFloat(paymentData.amount_paid) <= 0) {
+        toast({
+          title: "Error",
+          description: "Please enter a valid payment amount.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const paymentPayload = {
+        amount_paid: parseFloat(paymentData.amount_paid),
+        payment_method: paymentData.payment_method,
+        notes: paymentData.notes
+      };
+
+      let savedPayment;
+      if (paymentInfo) {
+        // Update existing payment
+        savedPayment = await updateLabWorkPayment(labWork.id, paymentPayload);
+        toast({
+          title: "Payment Updated",
+          description: "Lab work payment has been updated successfully.",
+        });
+      } else {
+        // Add new payment
+        savedPayment = await addLabWorkPayment(labWork.id, paymentPayload);
+        toast({
+          title: "Payment Added",
+          description: "Lab work payment has been recorded successfully.",
+        });
+      }
+
+      setPaymentInfo(savedPayment);
+      setShowPaymentDialog(false);
+    } catch (error) {
+      console.error('Error saving payment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save payment information.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const isOverdue = labWork.expected_date && 
     new Date(labWork.expected_date) < new Date() && 
     labWork.status !== 'completed' && 
     labWork.status !== 'delivered';
 
-  // Calculate balance for simplified cost tracking
+  // Calculate payment status
   const totalCost = labWork.cost || 0;
-  const totalPaid = 0; // This would come from payment records in a real implementation
+  const totalPaid = paymentInfo?.amount_paid || 0;
   const balanceRemaining = totalCost - totalPaid;
+  const isFullyPaid = totalCost > 0 && balanceRemaining <= 0;
+  const isPartiallyPaid = totalPaid > 0 && balanceRemaining > 0;
 
   return (
     <>
@@ -285,6 +363,18 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => {
+                        setShowPaymentDialog(true);
+                        setShowActions(false);
+                      }}
+                      className="w-full justify-start"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      {paymentInfo ? 'Edit Payment' : 'Add Payment'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={handleEdit}
                       className="w-full justify-start"
                     >
@@ -382,13 +472,13 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
             </div>
           )}
 
-          {/* Simplified Cost Tracking */}
+          {/* Enhanced Cost and Payment Tracking */}
           {labWork.cost && (
             <div className="space-y-2">
               <div className="text-sm">
                 <div className="flex items-center gap-2 text-slate-600 mb-1">
                   <DollarSign className="w-3 h-3" />
-                  <span className="text-xs font-medium">Cost Summary</span>
+                  <span className="text-xs font-medium">Cost & Payment Summary</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div className="bg-blue-50 p-2 rounded">
@@ -408,6 +498,39 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
                     </div>
                   </div>
                 </div>
+                
+                {/* Payment Status Badge */}
+                <div className="mt-2">
+                  {isFullyPaid && (
+                    <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Fully Paid
+                    </Badge>
+                  )}
+                  {isPartiallyPaid && (
+                    <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                      <Clock className="w-3 h-3 mr-1" />
+                      Partially Paid
+                    </Badge>
+                  )}
+                  {!totalPaid && totalCost > 0 && (
+                    <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Unpaid
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Payment Details */}
+                {paymentInfo && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                    <div className="font-medium text-green-800">Payment Details:</div>
+                    <div className="text-green-700">
+                      Method: {paymentInfo.payment_method} | Date: {paymentInfo.payment_date}
+                      {paymentInfo.notes && <div>Notes: {paymentInfo.notes}</div>}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -543,6 +666,83 @@ export const LabWorkCard: React.FC<LabWorkCardProps> = ({ labWork, onEdit, onVie
               <Button onClick={handleSaveEdit} className="flex-1">
                 <Save className="w-4 h-4 mr-2" />
                 Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{paymentInfo ? 'Edit Payment' : 'Add Payment'}</DialogTitle>
+            <DialogDescription>
+              {paymentInfo ? 'Update payment information for this lab work' : 'Record payment for this lab work'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {labWork.cost && (
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <div className="text-sm font-medium text-slate-700">Lab Work Cost: ₹{labWork.cost.toFixed(2)}</div>
+                {paymentInfo && (
+                  <div className="text-xs text-slate-600 mt-1">
+                    Current Payment: ₹{paymentInfo.amount_paid.toFixed(2)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-amount">Amount Paid (₹)</Label>
+              <Input
+                id="payment-amount"
+                type="number"
+                step="0.01"
+                value={paymentData.amount_paid}
+                onChange={(e) => setPaymentData(prev => ({ ...prev, amount_paid: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Payment Method</Label>
+              <Select 
+                value={paymentData.payment_method} 
+                onValueChange={(value) => setPaymentData(prev => ({ ...prev, payment_method: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="card">Credit/Debit Card</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-notes">Notes (Optional)</Label>
+              <Textarea
+                id="payment-notes"
+                value={paymentData.notes}
+                onChange={(e) => setPaymentData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Payment notes or reference"
+                rows={2}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button variant="outline" onClick={() => setShowPaymentDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={handlePaymentSave} className="flex-1">
+                <Save className="w-4 h-4 mr-2" />
+                {paymentInfo ? 'Update Payment' : 'Save Payment'}
               </Button>
             </div>
           </div>

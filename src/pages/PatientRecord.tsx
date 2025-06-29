@@ -158,13 +158,8 @@ const PatientRecord = () => {
         setAppointments(appointmentsData || []);
       }
 
-      // Fetch lab work
-      try {
-        const labWorkData = await getLabWorkByPatient(patientId);
-        setPatientLabWork(labWorkData);
-      } catch (error) {
-        console.error('Error fetching lab work:', error);
-      }
+      // Fetch lab work with real-time updates
+      await fetchLabWork();
 
     } catch (error) {
       console.error('Error in fetchPatientData:', error);
@@ -175,6 +170,15 @@ const PatientRecord = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchLabWork = async () => {
+    try {
+      const labWorkData = await getLabWorkByPatient(patientId!);
+      setPatientLabWork(labWorkData);
+    } catch (error) {
+      console.error('Error fetching lab work:', error);
     }
   };
 
@@ -265,6 +269,11 @@ const PatientRecord = () => {
   const handleEditLabWork = (labWork: any) => {
     // The edit functionality is now handled within the LabWorkCard component
     console.log('Edit lab work:', labWork);
+  };
+
+  // Function to refresh lab work data after changes
+  const handleLabWorkChange = async () => {
+    await fetchLabWork();
   };
 
   const calculateAge = (dateOfBirth: string) => {
@@ -817,7 +826,13 @@ const PatientRecord = () => {
       {/* Lab Work Form Dialog */}
       <LabWorkForm 
         open={showLabWorkForm} 
-        onOpenChange={setShowLabWorkForm}
+        onOpenChange={(open) => {
+          setShowLabWorkForm(open);
+          if (!open) {
+            // Refresh lab work data when dialog closes
+            handleLabWorkChange();
+          }
+        }}
         patientId={patient?.patient_id}
       />
 

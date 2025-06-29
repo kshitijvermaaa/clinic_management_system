@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CreditCard, Plus, Receipt, Calendar } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { CreditCard, Plus, Receipt, Calendar, Edit, Trash2, Save, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePayments } from '@/hooks/usePayments';
 
@@ -15,7 +17,7 @@ interface PaymentHistoryProps {
 
 export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => {
   const { toast } = useToast();
-  const { addPayment, getPaymentsByPatient, getPaymentSummaryForPatient } = usePayments();
+  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient } = usePayments();
   const [patientPayments, setPatientPayments] = useState<any[]>([]);
   const [paymentSummary, setPaymentSummary] = useState({
     totalCost: 0,
@@ -24,6 +26,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
   const [newPayment, setNewPayment] = useState({
     amount: '',
     paymentMethod: 'cash',
@@ -60,10 +63,10 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
   };
 
   const handleAddPayment = async () => {
-    if (!newPayment.amount) {
+    if (!newPayment.amount || parseFloat(newPayment.amount) <= 0) {
       toast({
         title: "Error",
-        description: "Please enter payment amount.",
+        description: "Please enter a valid payment amount.",
         variant: "destructive",
       });
       return;
@@ -101,6 +104,89 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     }
   };
 
+  const handleEditPayment = (payment: any) => {
+    setEditingPayment(payment);
+    setNewPayment({
+      amount: payment.amount.toString(),
+      paymentMethod: payment.payment_method,
+      notes: payment.notes || ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!editingPayment || !newPayment.amount || parseFloat(newPayment.amount) <= 0) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid payment amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const updates = {
+        amount: parseFloat(newPayment.amount),
+        payment_method: newPayment.paymentMethod,
+        notes: newPayment.notes
+      };
+
+      await updatePayment(editingPayment.id, updates);
+      
+      // Refresh payment data
+      await fetchPaymentData();
+      
+      setNewPayment({ amount: '', paymentMethod: 'cash', notes: '' });
+      setEditingPayment(null);
+      setIsDialogOpen(false);
+      
+      toast({
+        title: "Payment Updated",
+        description: `Payment has been updated successfully.`,
+      });
+      
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update payment.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Are you sure you want to delete this payment record?')) {
+      return;
+    }
+
+    try {
+      await deletePayment(paymentId);
+      
+      // Refresh payment data
+      await fetchPaymentData();
+      
+      toast({
+        title: "Payment Deleted",
+        description: "Payment record has been deleted.",
+      });
+      
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete payment.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const resetDialog = () => {
+    setNewPayment({ amount: '', paymentMethod: 'cash', notes: '' });
+    setEditingPayment(null);
+    setIsDialogOpen(false);
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -128,16 +214,16 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-green-600 hover:bg-green-700">
+              <Button className="bg-green-600 hover:bg-green-700" onClick={() => setEditingPayment(null)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Payment
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Record Payment</DialogTitle>
+                <DialogTitle>{editingPayment ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
                 <DialogDescription>
-                  Add a new payment record for this patient
+                  {editingPayment ? 'Update payment record for this patient' : 'Add a new payment record for this patient'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -146,6 +232,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                   <Input
                     id="amount"
                     type="number"
+                    step="0.01"
                     value={newPayment.amount}
                     onChange={(e) => setNewPayment(prev => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
@@ -153,33 +240,42 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="method">Payment Method</Label>
-                  <select
-                    id="method"
+                  <Select
                     value={newPayment.paymentMethod}
-                    onChange={(e) => setNewPayment(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                    className="w-full p-2 border rounded-md"
+                    onValueChange={(value) => setNewPayment(prev => ({ ...prev, paymentMethod: value }))}
                   >
-                    <option value="cash">Cash</option>
-                    <option value="card">Credit/Debit Card</option>
-                    <option value="upi">UPI</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                  </select>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="card">Credit/Debit Card</SelectItem>
+                      <SelectItem value="upi">UPI</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Input
+                  <Textarea
                     id="notes"
                     value={newPayment.notes}
                     onChange={(e) => setNewPayment(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Payment notes"
+                    placeholder="Payment notes or reference"
+                    rows={2}
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleAddPayment} className="flex-1">
-                    <Receipt className="w-4 h-4 mr-2" />
-                    Record Payment
+                  <Button 
+                    onClick={editingPayment ? handleUpdatePayment : handleAddPayment} 
+                    className="flex-1"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {editingPayment ? 'Update Payment' : 'Record Payment'}
                   </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+                  <Button variant="outline" onClick={resetDialog} className="flex-1">
+                    <X className="w-4 h-4 mr-2" />
                     Cancel
                   </Button>
                 </div>
@@ -233,7 +329,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
               </div>
             ) : (
               patientPayments.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                       <Receipt className="w-4 h-4 text-green-600" />
@@ -246,11 +342,30 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-sm text-slate-500">
-                      <Calendar className="w-3 h-3" />
-                      {payment.payment_date}
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <div className="flex items-center gap-1 text-sm text-slate-500">
+                        <Calendar className="w-3 h-3" />
+                        {payment.payment_date}
+                      </div>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditPayment(payment)}
+                      title="Edit Payment"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeletePayment(payment.id)}
+                      title="Delete Payment"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
               ))

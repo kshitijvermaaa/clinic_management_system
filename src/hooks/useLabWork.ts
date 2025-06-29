@@ -38,6 +38,16 @@ export interface LabWorkFile {
   uploaded_at: string;
 }
 
+export interface LabWorkPayment {
+  id: string;
+  lab_work_id: string;
+  amount_paid: number;
+  payment_date: string;
+  payment_method: string;
+  notes?: string;
+  created_at: string;
+}
+
 export const useLabWork = () => {
   const [labWork, setLabWork] = useState<LabWork[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +99,17 @@ export const useLabWork = () => {
       const { data, error } = await supabase
         .from('lab_work')
         .insert(labWorkData)
-        .select()
+        .select(`
+          *,
+          patients:patient_id (
+            full_name,
+            mobile_number,
+            patient_id
+          ),
+          treatments:treatment_id (
+            procedure_done
+          )
+        `)
         .single();
 
       if (error) {
@@ -97,8 +117,8 @@ export const useLabWork = () => {
         throw error;
       }
 
-      // Refresh the lab work list to get the latest data
-      await fetchLabWork();
+      // Update local state immediately with the new lab work
+      setLabWork(prev => [data, ...prev]);
       return data;
     } catch (error) {
       console.error('Error in createLabWork:', error);
@@ -108,9 +128,6 @@ export const useLabWork = () => {
 
   const updateLabWork = async (labWorkId: string, updates: Partial<LabWork>) => {
     try {
-      // Store original state for potential rollback
-      const originalLabWork = [...labWork];
-      
       // Update local state immediately for real-time UI updates (optimistic update)
       setLabWork(prev => prev.map(work => 
         work.id === labWorkId ? { ...work, ...updates } : work
@@ -120,18 +137,31 @@ export const useLabWork = () => {
         .from('lab_work')
         .update(updates)
         .eq('id', labWorkId)
-        .select()
+        .select(`
+          *,
+          patients:patient_id (
+            full_name,
+            mobile_number,
+            patient_id
+          ),
+          treatments:treatment_id (
+            procedure_done
+          )
+        `)
         .single();
 
       if (error) {
         console.error('Error updating lab work:', error);
         // Revert the optimistic update on error
-        setLabWork(originalLabWork);
+        await fetchLabWork();
         throw error;
       }
 
-      // Refresh from server to ensure consistency after successful update
-      await fetchLabWork();
+      // Update local state with the server response
+      setLabWork(prev => prev.map(work => 
+        work.id === labWorkId ? data : work
+      ));
+
       return data;
     } catch (error) {
       console.error('Error in updateLabWork:', error);
@@ -170,7 +200,17 @@ export const useLabWork = () => {
     try {
       const { data, error } = await supabase
         .from('lab_work')
-        .select('*')
+        .select(`
+          *,
+          patients:patient_id (
+            full_name,
+            mobile_number,
+            patient_id
+          ),
+          treatments:treatment_id (
+            procedure_done
+          )
+        `)
         .eq('patient_id', patientId)
         .order('date_sent', { ascending: false });
 
@@ -270,6 +310,87 @@ export const useLabWork = () => {
     }
   };
 
+  // New function to add payment for lab work
+  const addLabWorkPayment = async (labWorkId: string, paymentData: {
+    amount_paid: number;
+    payment_method: string;
+    notes?: string;
+  }) => {
+    try {
+      // First, create the payment record in a payments table (we'll need to create this)
+      // For now, we'll store payment info in localStorage as a temporary solution
+      const payments = JSON.parse(localStorage.getItem('lab_work_payments') || '{}');
+      const paymentId = `payment_${Date.now()}`;
+      
+      payments[labWorkId] = {
+        id: paymentId,
+        lab_work_id: labWorkId,
+        amount_paid: paymentData.amount_paid,
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: paymentData.payment_method,
+        notes: paymentData.notes,
+        created_at: new Date().toISOString()
+      };
+      
+      localStorage.setItem('lab_work_payments', JSON.stringify(payments));
+      
+      return payments[labWorkId];
+    } catch (error) {
+      console.error('Error adding lab work payment:', error);
+      throw error;
+    }
+  };
+
+  // Function to get payment info for lab work
+  const getLabWorkPayment = async (labWorkId: string) => {
+    try {
+      const payments = JSON.parse(localStorage.getItem('lab_work_payments') || '{}');
+      return payments[labWorkId] || null;
+    } catch (error) {
+      console.error('Error getting lab work payment:', error);
+      return null;
+    }
+  };
+
+  // Function to update payment for lab work
+  const updateLabWorkPayment = async (labWorkId: string, paymentData: {
+    amount_paid: number;
+    payment_method: string;
+    notes?: string;
+  }) => {
+    try {
+      const payments = JSON.parse(localStorage.getItem('lab_work_payments') || '{}');
+      
+      if (payments[labWorkId]) {
+        payments[labWorkId] = {
+          ...payments[labWorkId],
+          amount_paid: paymentData.amount_paid,
+          payment_method: paymentData.payment_method,
+          notes: paymentData.notes,
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        // Create new payment if doesn't exist
+        payments[labWorkId] = {
+          id: `payment_${Date.now()}`,
+          lab_work_id: labWorkId,
+          amount_paid: paymentData.amount_paid,
+          payment_date: new Date().toISOString().split('T')[0],
+          payment_method: paymentData.payment_method,
+          notes: paymentData.notes,
+          created_at: new Date().toISOString()
+        };
+      }
+      
+      localStorage.setItem('lab_work_payments', JSON.stringify(payments));
+      
+      return payments[labWorkId];
+    } catch (error) {
+      console.error('Error updating lab work payment:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     fetchLabWork();
   }, []);
@@ -285,5 +406,8 @@ export const useLabWork = () => {
     uploadLabWorkFile,
     getLabWorkFiles,
     downloadLabWorkFile,
+    addLabWorkPayment,
+    getLabWorkPayment,
+    updateLabWorkPayment,
   };
 };
