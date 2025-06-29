@@ -104,6 +104,113 @@ export type Database = {
         }
         Relationships: []
       }
+      lab_work: {
+        Row: {
+          actual_date: string | null
+          cost: number | null
+          created_at: string | null
+          date_sent: string
+          expected_date: string | null
+          id: string
+          instructions: string | null
+          lab_name: string
+          lab_type: string
+          notes: string | null
+          patient_id: string
+          status: Database["public"]["Enums"]["lab_work_status"]
+          treatment_id: string | null
+          updated_at: string | null
+          work_description: string
+        }
+        Insert: {
+          actual_date?: string | null
+          cost?: number | null
+          created_at?: string | null
+          date_sent?: string
+          expected_date?: string | null
+          id?: string
+          instructions?: string | null
+          lab_name: string
+          lab_type: string
+          notes?: string | null
+          patient_id: string
+          status?: Database["public"]["Enums"]["lab_work_status"]
+          treatment_id?: string | null
+          updated_at?: string | null
+          work_description: string
+        }
+        Update: {
+          actual_date?: string | null
+          cost?: number | null
+          created_at?: string | null
+          date_sent?: string
+          expected_date?: string | null
+          id?: string
+          instructions?: string | null
+          lab_name?: string
+          lab_type?: string
+          notes?: string | null
+          patient_id?: string
+          status?: Database["public"]["Enums"]["lab_work_status"]
+          treatment_id?: string | null
+          updated_at?: string | null
+          work_description?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_work_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "lab_work_treatment_id_fkey"
+            columns: ["treatment_id"]
+            isOneToOne: false
+            referencedRelation: "treatments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_work_files: {
+        Row: {
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+          lab_work_id: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+          lab_work_id: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          lab_work_id?: string
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_work_files_lab_work_id_fkey"
+            columns: ["lab_work_id"]
+            isOneToOne: false
+            referencedRelation: "lab_work"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           address: string
@@ -163,6 +270,67 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          lab_work_id: string | null
+          notes: string | null
+          patient_id: string
+          payment_date: string
+          payment_method: string
+          treatment_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          lab_work_id?: string | null
+          notes?: string | null
+          patient_id: string
+          payment_date?: string
+          payment_method?: string
+          treatment_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          lab_work_id?: string | null
+          notes?: string | null
+          patient_id?: string
+          payment_date?: string
+          payment_method?: string
+          treatment_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_lab_work_id_fkey"
+            columns: ["lab_work_id"]
+            isOneToOne: false
+            referencedRelation: "lab_work"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "payments_treatment_id_fkey"
+            columns: ["treatment_id"]
+            isOneToOne: false
+            referencedRelation: "treatments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       prescriptions: {
         Row: {
@@ -322,6 +490,7 @@ export type Database = {
         | "cancelled"
         | "rescheduled"
       appointment_type: "regular" | "emergency" | "walkin" | "followup"
+      lab_work_status: "pending" | "in_progress" | "completed" | "delivered"
       treatment_status: "ongoing" | "completed" | "paused"
     }
     CompositeTypes: {
@@ -445,6 +614,7 @@ const Constants = {
         "rescheduled",
       ],
       appointment_type: ["regular", "emergency", "walkin", "followup"],
+      lab_work_status: ["pending", "in_progress", "completed", "delivered"],
       treatment_status: ["ongoing", "completed", "paused"],
     },
   },
