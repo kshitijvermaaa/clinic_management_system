@@ -17,7 +17,7 @@ interface PaymentHistoryProps {
 
 export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => {
   const { toast } = useToast();
-  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient, refreshPayments, lastUpdate } = usePayments();
+  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient, refreshPayments } = usePayments();
   const [patientPayments, setPatientPayments] = useState<any[]>([]);
   const [paymentSummary, setPaymentSummary] = useState({
     totalCost: 0,
@@ -33,20 +33,6 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     paymentMethod: 'cash',
     notes: ''
   });
-
-  // Auto-refresh when lastUpdate changes (from the hook)
-  useEffect(() => {
-    console.log('Payment hook lastUpdate changed, refreshing data...');
-    fetchPaymentData();
-  }, [lastUpdate, patientId]);
-
-  // Initial load
-  useEffect(() => {
-    if (patientId) {
-      console.log('PatientId changed, loading payment data for:', patientId);
-      fetchPaymentData();
-    }
-  }, [patientId]);
 
   const fetchPaymentData = async () => {
     try {
@@ -69,13 +55,21 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
       console.error('Error fetching payment data:', error);
       toast({
         title: "Error",
-        description: "Failed to load payment history.",
+        description: "Failed to load payment history from database.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Auto-refresh when patient changes
+  useEffect(() => {
+    if (patientId) {
+      console.log('Patient ID changed, loading payment data for:', patientId);
+      fetchPaymentData();
+    }
+  }, [patientId]);
 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
@@ -131,14 +125,14 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
       
       toast({
         title: "Payment Added",
-        description: `Payment of ₹${paymentData.amount} has been recorded.`,
+        description: `Payment of ₹${paymentData.amount} has been saved to database.`,
       });
       
     } catch (error) {
       console.error('Error adding payment:', error);
       toast({
-        title: "Error",
-        description: "Failed to add payment.",
+        title: "Database Error",
+        description: "Failed to save payment to database. Please try again.",
         variant: "destructive",
       });
     }
@@ -184,14 +178,14 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
       
       toast({
         title: "Payment Updated",
-        description: `Payment has been updated successfully.`,
+        description: `Payment has been updated in database.`,
       });
       
     } catch (error) {
       console.error('Error updating payment:', error);
       toast({
-        title: "Error",
-        description: "Failed to update payment.",
+        title: "Database Error",
+        description: "Failed to update payment in database.",
         variant: "destructive",
       });
     }
@@ -212,14 +206,14 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
       
       toast({
         title: "Payment Deleted",
-        description: "Payment record has been deleted.",
+        description: "Payment record has been deleted from database.",
       });
       
     } catch (error) {
       console.error('Error deleting payment:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete payment.",
+        title: "Database Error",
+        description: "Failed to delete payment from database.",
         variant: "destructive",
       });
     }
@@ -237,6 +231,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="ml-2">Loading payment data from database...</span>
           </div>
         </CardContent>
       </Card>
@@ -250,10 +245,10 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
           <div>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-blue-600" />
-              Payment History
+              Payment History (Database)
             </CardTitle>
             <CardDescription>
-              Track payments and outstanding balance
+              Track payments and outstanding balance - All data saved to Supabase
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -277,7 +272,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                 <DialogHeader>
                   <DialogTitle>{editingPayment ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
                   <DialogDescription>
-                    {editingPayment ? 'Update payment record for this patient' : 'Add a new payment record for this patient'}
+                    {editingPayment ? 'Update payment record in database' : 'Add a new payment record to database'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -326,7 +321,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                       className="flex-1"
                     >
                       <Save className="w-4 h-4 mr-2" />
-                      {editingPayment ? 'Update Payment' : 'Record Payment'}
+                      {editingPayment ? 'Update Payment' : 'Save to Database'}
                     </Button>
                     <Button variant="outline" onClick={resetDialog} className="flex-1">
                       <X className="w-4 h-4 mr-2" />
@@ -351,6 +346,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
               <div className="text-2xl font-bold text-blue-900">
                 ₹{paymentSummary.totalCost.toLocaleString()}
               </div>
+              <div className="text-xs text-blue-600 mt-1">From treatments & lab work</div>
             </div>
             <div className="p-4 bg-green-50 rounded-lg">
               <div className="flex items-center gap-2">
@@ -360,6 +356,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
               <div className="text-2xl font-bold text-green-900">
                 ₹{paymentSummary.totalPaid.toLocaleString()}
               </div>
+              <div className="text-xs text-green-600 mt-1">From database records</div>
             </div>
             <div className="p-4 bg-orange-50 rounded-lg">
               <div className="flex items-center gap-2">
@@ -377,10 +374,10 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
 
           {/* Payment History */}
           <div className="space-y-2">
-            <h4 className="font-medium text-slate-900">Recent Payments</h4>
+            <h4 className="font-medium text-slate-900">Payment Records ({patientPayments.length})</h4>
             {patientPayments.length === 0 ? (
               <div className="text-center py-4 text-slate-500">
-                <p>No payments recorded yet</p>
+                <p>No payments recorded in database yet</p>
               </div>
             ) : (
               patientPayments.map((payment) => (
@@ -403,6 +400,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                         <Calendar className="w-3 h-3" />
                         {payment.payment_date}
                       </div>
+                      <div className="text-xs text-green-600">Saved in DB</div>
                     </div>
                     <Button
                       variant="outline"

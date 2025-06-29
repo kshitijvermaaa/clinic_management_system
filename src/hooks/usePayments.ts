@@ -6,11 +6,13 @@ interface Payment {
   id: string;
   patient_id: string;
   treatment_id?: string;
+  lab_work_id?: string;
   amount: number;
   payment_date: string;
   payment_method: string;
   notes?: string;
   created_at: string;
+  updated_at: string;
 }
 
 interface PaymentSummary {
@@ -28,25 +30,28 @@ export const usePayments = () => {
   const fetchPayments = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching payments from Supabase...');
       
-      // Try to fetch from Supabase first (when we have a payments table)
-      // For now, use localStorage with better error handling
-      const storedPayments = localStorage.getItem('patient_payments');
-      if (storedPayments) {
-        try {
-          const parsedPayments = JSON.parse(storedPayments);
-          setPayments(Array.isArray(parsedPayments) ? parsedPayments : []);
-        } catch (parseError) {
-          console.error('Error parsing stored payments:', parseError);
-          // Reset to empty array if parsing fails
-          localStorage.setItem('patient_payments', JSON.stringify([]));
-          setPayments([]);
-        }
-      } else {
-        setPayments([]);
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .order('payment_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching payments:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load payment data from database.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      console.log('Payments loaded from database:', data?.length || 0);
+      setPayments(data || []);
+      setLastUpdate(Date.now());
     } catch (error) {
-      console.error('Error fetching payments:', error);
+      console.error('Error in fetchPayments:', error);
       toast({
         title: "Error",
         description: "Failed to load payment data.",
@@ -58,108 +63,141 @@ export const usePayments = () => {
     }
   };
 
-  const savePaymentsToStorage = (paymentsData: Payment[]) => {
+  const addPayment = async (paymentData: Omit<Payment, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      localStorage.setItem('patient_payments', JSON.stringify(paymentsData));
-      // Force update to trigger re-renders
-      setLastUpdate(Date.now());
-      return true;
-    } catch (error) {
-      console.error('Error saving payments to localStorage:', error);
-      return false;
-    }
-  };
-
-  const addPayment = async (paymentData: Omit<Payment, 'id' | 'created_at'>) => {
-    try {
-      const newPayment: Payment = {
-        ...paymentData,
-        id: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        created_at: new Date().toISOString()
-      };
-
-      // Update local state immediately for real-time UI update
-      const updatedPayments = [...payments, newPayment];
-      setPayments(updatedPayments);
+      console.log('Adding payment to database:', paymentData);
       
-      // Persist to localStorage
-      const saved = savePaymentsToStorage(updatedPayments);
-      if (!saved) {
-        // Revert local state if storage fails
-        setPayments(payments);
-        throw new Error('Failed to save payment data');
+      const { data, error } = await supabase
+        .from('payments')
+        .insert(paymentData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding payment:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save payment to database.",
+          variant: "destructive",
+        });
+        throw error;
       }
 
-      // Force multiple re-renders to ensure UI updates
-      setTimeout(() => {
-        setPayments([...updatedPayments]);
-        setLastUpdate(Date.now());
-      }, 100);
+      console.log('Payment added successfully:', data);
+      
+      // Update local state immediately
+      setPayments(prev => [data, ...prev]);
+      setLastUpdate(Date.now());
+      
+      toast({
+        title: "Payment Added",
+        description: `Payment of ₹${paymentData.amount} has been recorded successfully.`,
+      });
 
-      setTimeout(() => {
-        setPayments([...updatedPayments]);
-        setLastUpdate(Date.now());
-      }, 500);
-
-      return newPayment;
+      return data;
     } catch (error) {
-      console.error('Error adding payment:', error);
+      console.error('Error in addPayment:', error);
       throw error;
     }
   };
 
   const updatePayment = async (paymentId: string, updates: Partial<Payment>) => {
     try {
-      // Update local state immediately
-      const updatedPayments = payments.map(payment => 
-        payment.id === paymentId ? { ...payment, ...updates } : payment
-      );
-      setPayments(updatedPayments);
+      console.log('Updating payment in database:', paymentId, updates);
       
-      // Persist to localStorage
-      const saved = savePaymentsToStorage(updatedPayments);
-      if (!saved) {
-        // Revert local state if storage fails
-        setPayments(payments);
-        throw new Error('Failed to update payment data');
+      const { data, error } = await supabase
+        .from('payments')
+        .update(updates)
+        .eq('id', paymentId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating payment:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update payment in database.",
+          variant: "destructive",
+        });
+        throw error;
       }
 
-      // Force re-render
+      console.log('Payment updated successfully:', data);
+      
+      // Update local state
+      setPayments(prev => prev.map(payment => 
+        payment.id === paymentId ? data : payment
+      ));
       setLastUpdate(Date.now());
 
-      return updatedPayments.find(p => p.id === paymentId);
+      toast({
+        title: "Payment Updated",
+        description: "Payment has been updated successfully.",
+      });
+
+      return data;
     } catch (error) {
-      console.error('Error updating payment:', error);
+      console.error('Error in updatePayment:', error);
       throw error;
     }
   };
 
   const deletePayment = async (paymentId: string) => {
     try {
-      // Update local state immediately
-      const updatedPayments = payments.filter(payment => payment.id !== paymentId);
-      setPayments(updatedPayments);
+      console.log('Deleting payment from database:', paymentId);
       
-      // Persist to localStorage
-      const saved = savePaymentsToStorage(updatedPayments);
-      if (!saved) {
-        // Revert local state if storage fails
-        setPayments(payments);
-        throw new Error('Failed to delete payment data');
+      const { error } = await supabase
+        .from('payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (error) {
+        console.error('Error deleting payment:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete payment from database.",
+          variant: "destructive",
+        });
+        throw error;
       }
 
-      // Force re-render
+      console.log('Payment deleted successfully');
+      
+      // Update local state
+      setPayments(prev => prev.filter(payment => payment.id !== paymentId));
       setLastUpdate(Date.now());
+
+      toast({
+        title: "Payment Deleted",
+        description: "Payment record has been deleted.",
+      });
     } catch (error) {
-      console.error('Error deleting payment:', error);
+      console.error('Error in deletePayment:', error);
       throw error;
     }
   };
 
   const getPaymentsByPatient = async (patientId: string): Promise<Payment[]> => {
-    // Always fetch fresh data
-    await fetchPayments();
-    return payments.filter(payment => payment.patient_id === patientId);
+    try {
+      console.log('Fetching payments for patient:', patientId);
+      
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('payment_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching patient payments:', error);
+        throw error;
+      }
+
+      console.log('Patient payments loaded:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('Error in getPaymentsByPatient:', error);
+      return [];
+    }
   };
 
   const getPaymentSummaryForPatient = async (patientId: string): Promise<PaymentSummary> => {
@@ -186,16 +224,22 @@ export const usePayments = () => {
         console.error('Error fetching lab work:', labWorkError);
       }
 
-      // Calculate total costs from treatments and lab work
+      // Get all payments for this patient
+      const { data: patientPayments, error: paymentsError } = await supabase
+        .from('payments')
+        .select('amount')
+        .eq('patient_id', patientId);
+
+      if (paymentsError) {
+        console.error('Error fetching payments:', paymentsError);
+      }
+
+      // Calculate totals
       const treatmentCosts = treatments?.reduce((sum, treatment) => sum + (treatment.treatment_cost || 0), 0) || 0;
       const labWorkCosts = labWork?.reduce((sum, work) => sum + (work.cost || 0), 0) || 0;
       const totalCost = treatmentCosts + labWorkCosts;
       
-      // Get all payments for this patient (fresh data)
-      await fetchPayments();
-      const patientPayments = payments.filter(payment => payment.patient_id === patientId);
-      const totalPaid = patientPayments.reduce((sum, payment) => sum + payment.amount, 0);
-      
+      const totalPaid = patientPayments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
       const balance = totalCost - totalPaid;
 
       const summary = {
@@ -216,62 +260,25 @@ export const usePayments = () => {
     }
   };
 
-  // Function to clear all payment data (for testing/reset purposes)
-  const clearAllPayments = async () => {
-    try {
-      setPayments([]);
-      localStorage.removeItem('patient_payments');
-      setLastUpdate(Date.now());
-    } catch (error) {
-      console.error('Error clearing payments:', error);
-      throw error;
-    }
-  };
-
-  // Function to refresh payments data with force update
   const refreshPayments = async () => {
     console.log('Force refreshing payments data...');
     await fetchPayments();
-    setLastUpdate(Date.now());
-    
-    // Force multiple updates to ensure UI refresh
-    setTimeout(() => {
-      setLastUpdate(Date.now());
-    }, 100);
-    
-    setTimeout(() => {
-      setLastUpdate(Date.now());
-    }, 500);
   };
 
   useEffect(() => {
     fetchPayments();
   }, []);
 
-  // Add effect to listen for storage changes from other tabs/windows
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'patient_payments') {
-        console.log('Payment data changed in another tab, refreshing...');
-        fetchPayments();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
   return {
     payments,
     isLoading,
-    lastUpdate, // Expose this for components that need to track updates
+    lastUpdate,
     fetchPayments,
     addPayment,
     updatePayment,
     deletePayment,
     getPaymentsByPatient,
     getPaymentSummaryForPatient,
-    clearAllPayments,
     refreshPayments,
   };
 };
