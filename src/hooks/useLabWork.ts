@@ -119,6 +119,12 @@ export const useLabWork = () => {
         throw error;
       }
 
+      // Update local state immediately for real-time UI updates
+      setLabWork(prev => prev.map(work => 
+        work.id === labWorkId ? { ...work, ...updates } : work
+      ));
+
+      // Also refresh from server to ensure consistency
       await fetchLabWork();
       return data;
     } catch (error) {
@@ -139,7 +145,8 @@ export const useLabWork = () => {
         throw error;
       }
 
-      await fetchLabWork();
+      // Update local state immediately
+      setLabWork(prev => prev.filter(work => work.id !== labWorkId));
     } catch (error) {
       console.error('Error in deleteLabWork:', error);
       throw error;

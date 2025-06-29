@@ -357,7 +357,7 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
                   <div className="text-slate-600">Loading patient information...</div>
                 </div>
               ) : (
-                <div className="w-full max-w-2xl">
+                <div className="w-full max-w-2xl mx-auto">
                   <PatientSelector
                     selectedPatient={selectedPatient}
                     onPatientSelect={setSelectedPatient}
