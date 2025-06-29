@@ -97,6 +97,7 @@ export const useLabWork = () => {
         throw error;
       }
 
+      // Refresh the lab work list to get the latest data
       await fetchLabWork();
       return data;
     } catch (error) {
@@ -107,6 +108,11 @@ export const useLabWork = () => {
 
   const updateLabWork = async (labWorkId: string, updates: Partial<LabWork>) => {
     try {
+      // Update local state immediately for real-time UI updates
+      setLabWork(prev => prev.map(work => 
+        work.id === labWorkId ? { ...work, ...updates } : work
+      ));
+
       const { data, error } = await supabase
         .from('lab_work')
         .update(updates)
@@ -116,15 +122,12 @@ export const useLabWork = () => {
 
       if (error) {
         console.error('Error updating lab work:', error);
+        // Revert the optimistic update on error
+        await fetchLabWork();
         throw error;
       }
 
-      // Update local state immediately for real-time UI updates
-      setLabWork(prev => prev.map(work => 
-        work.id === labWorkId ? { ...work, ...updates } : work
-      ));
-
-      // Also refresh from server to ensure consistency
+      // Refresh from server to ensure consistency
       await fetchLabWork();
       return data;
     } catch (error) {
@@ -135,6 +138,9 @@ export const useLabWork = () => {
 
   const deleteLabWork = async (labWorkId: string) => {
     try {
+      // Update local state immediately
+      setLabWork(prev => prev.filter(work => work.id !== labWorkId));
+
       const { error } = await supabase
         .from('lab_work')
         .delete()
@@ -142,11 +148,12 @@ export const useLabWork = () => {
 
       if (error) {
         console.error('Error deleting lab work:', error);
+        // Revert the optimistic update on error
+        await fetchLabWork();
         throw error;
       }
 
-      // Update local state immediately
-      setLabWork(prev => prev.filter(work => work.id !== labWorkId));
+      // No need to fetch again since we already updated locally
     } catch (error) {
       console.error('Error in deleteLabWork:', error);
       throw error;
