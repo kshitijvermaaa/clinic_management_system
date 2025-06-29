@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { VisualTeethSelector } from '@/components/appointments/VisualTeethSelector';
 import { PatientSelector } from '@/components/common/PatientSelector';
+import { usePatients } from '@/hooks/usePatients';
 
 interface ToothSelection {
   tooth: string;
@@ -34,8 +35,10 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { getPatientById } = usePatients();
   
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [isLoadingPatient, setIsLoadingPatient] = useState(false);
   const [treatmentData, setTreatmentData] = useState({
     patientComplaint: '',
     painLevel: '',
@@ -72,15 +75,47 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
     'Follow-up Visit'
   ];
 
-  // Initialize with existing patient if provided
+  // Initialize with existing patient if provided - fetch complete patient data
   useEffect(() => {
-    if (patientId && patientName) {
-      setSelectedPatient({
-        patient_id: patientId,
-        full_name: patientName
-      });
-    }
-  }, [patientId, patientName]);
+    const loadPatient = async () => {
+      if (patientId) {
+        setIsLoadingPatient(true);
+        try {
+          const patient = await getPatientById(patientId);
+          if (patient) {
+            setSelectedPatient(patient);
+          } else {
+            // Fallback: create partial object if patient not found in database
+            setSelectedPatient({
+              patient_id: patientId,
+              full_name: patientName || 'Unknown Patient',
+              mobile_number: '', // Ensure mobile_number is always present
+              email: '',
+              date_of_birth: null,
+              gender: '',
+              address: ''
+            });
+          }
+        } catch (error) {
+          console.error('Error loading patient:', error);
+          // Fallback: create partial object on error
+          setSelectedPatient({
+            patient_id: patientId,
+            full_name: patientName || 'Unknown Patient',
+            mobile_number: '', // Ensure mobile_number is always present
+            email: '',
+            date_of_birth: null,
+            gender: '',
+            address: ''
+          });
+        } finally {
+          setIsLoadingPatient(false);
+        }
+      }
+    };
+
+    loadPatient();
+  }, [patientId, patientName, getPatientById]);
 
   const handleInputChange = (field: string, value: string) => {
     setTreatmentData(prev => ({
@@ -313,13 +348,19 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6">
-            <PatientSelector
-              selectedPatient={selectedPatient}
-              onPatientSelect={setSelectedPatient}
-              label="Patient"
-              required={true}
-              placeholder="Search by patient name or ID..."
-            />
+            {isLoadingPatient ? (
+              <div className="flex items-center justify-center p-4">
+                <div className="text-slate-600">Loading patient information...</div>
+              </div>
+            ) : (
+              <PatientSelector
+                selectedPatient={selectedPatient}
+                onPatientSelect={setSelectedPatient}
+                label="Patient"
+                required={true}
+                placeholder="Search by patient name or ID..."
+              />
+            )}
           </CardContent>
         </Card>
 
