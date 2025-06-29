@@ -75,6 +75,9 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
     'Follow-up Visit'
   ];
 
+  // Check if patient is already provided (from patient search or dashboard)
+  const hasPreselectedPatient = Boolean(patientId && patientName);
+
   // Initialize with existing patient if provided - fetch complete patient data
   useEffect(() => {
     const loadPatient = async () => {
@@ -334,35 +337,70 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
           </div>
         </div>
 
-        {/* Patient Selection */}
-        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-lg">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <UserIcon className="w-5 h-5 text-white" />
+        {/* Patient Selection - Only show if no patient is preselected */}
+        {!hasPreselectedPatient && (
+          <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-lg">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-2 bg-blue-600 rounded-lg">
+                  <UserIcon className="w-5 h-5 text-white" />
+                </div>
+                Patient Selection
+              </CardTitle>
+              <CardDescription className="text-slate-600">
+                Select the patient for this treatment session
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLoadingPatient ? (
+                <div className="flex items-center justify-center p-4">
+                  <div className="text-slate-600">Loading patient information...</div>
+                </div>
+              ) : (
+                <div className="w-full max-w-2xl">
+                  <PatientSelector
+                    selectedPatient={selectedPatient}
+                    onPatientSelect={setSelectedPatient}
+                    label="Patient"
+                    required={true}
+                    placeholder="Search by patient name or ID..."
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Patient Info Display - Show when patient is preselected */}
+        {hasPreselectedPatient && selectedPatient && (
+          <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 rounded-t-lg">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-2 bg-green-600 rounded-lg">
+                  <UserIcon className="w-5 h-5 text-white" />
+                </div>
+                Selected Patient
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <UserIcon className="w-6 h-6 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-green-900">{selectedPatient.full_name}</div>
+                  <div className="text-sm text-green-700">
+                    Patient ID: {selectedPatient.patient_id}
+                    {selectedPatient.mobile_number && ` • Phone: ${selectedPatient.mobile_number.split(',')[0]}`}
+                  </div>
+                </div>
+                <Badge className="bg-green-100 text-green-800 border-green-300">
+                  Ready for Treatment
+                </Badge>
               </div>
-              Patient Selection
-            </CardTitle>
-            <CardDescription className="text-slate-600">
-              Select the patient for this treatment session
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            {isLoadingPatient ? (
-              <div className="flex items-center justify-center p-4">
-                <div className="text-slate-600">Loading patient information...</div>
-              </div>
-            ) : (
-              <PatientSelector
-                selectedPatient={selectedPatient}
-                onPatientSelect={setSelectedPatient}
-                label="Patient"
-                required={true}
-                placeholder="Search by patient name or ID..."
-              />
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Step 1: Patient Complaint */}
         <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
