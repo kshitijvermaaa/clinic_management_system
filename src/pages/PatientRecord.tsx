@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -107,107 +107,179 @@ const PatientRecord = () => {
   const [treatmentStatusFilter, setTreatmentStatusFilter] = useState<string>('all');
   const [updatingTreatmentId, setUpdatingTreatmentId] = useState<string | null>(null);
 
+  // Auto-refresh data when patient changes
   useEffect(() => {
     if (patientId) {
-      fetchPatientData();
+      console.log('Patient ID changed, loading data for:', patientId);
+      fetchAllPatientData();
     }
   }, [patientId]);
 
-  const fetchPatientData = async () => {
+  // Auto-refresh data every 30 seconds to keep it fresh
+  useEffect(() => {
+    if (!patientId) return;
+
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing patient data...');
+      fetchAllPatientData(false); // Silent refresh
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [patientId]);
+
+  const fetchAllPatientData = useCallback(async (showLoading = true) => {
+    if (!patientId) return;
+
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       
-      // Fetch patient details
-      const { data: patientData, error: patientError } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('patient_id', patientId)
-        .single();
-
-      if (patientError) {
-        console.error('Error fetching patient:', patientError);
-        toast({
-          title: "Error",
-          description: "Failed to load patient data",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setPatient(patientData);
-      setEditedPatient(patientData);
-
-      // Fetch treatments
-      const { data: treatmentsData, error: treatmentsError } = await supabase
-        .from('treatments')
-        .select('*')
-        .eq('patient_id', patientId)
-        .order('treatment_date', { ascending: false });
-
-      if (treatmentsError) {
-        console.error('Error fetching treatments:', treatmentsError);
-      } else {
-        setTreatments(treatmentsData || []);
-      }
-
-      // Fetch appointments
-      const { data: appointmentsData, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('patient_id', patientId)
-        .order('appointment_date', { ascending: false });
-
-      if (appointmentsError) {
-        console.error('Error fetching appointments:', appointmentsError);
-      } else {
-        setAppointments(appointmentsData || []);
-      }
-
-      // Fetch lab work and payment summary
-      await Promise.all([
+      console.log('Fetching all data for patient:', patientId);
+      
+      // Fetch all data in parallel for better performance
+      const [
+        patientResult,
+        treatmentsResult,
+        appointmentsResult,
+        labWorkResult,
+        paymentSummaryResult
+      ] = await Promise.allSettled([
+        fetchPatientDetails(),
+        fetchTreatments(),
+        fetchAppointments(),
         fetchLabWork(),
         fetchPaymentSummary()
       ]);
 
+      // Handle results and log any errors
+      if (patientResult.status === 'rejected') {
+        console.error('Failed to fetch patient:', patientResult.reason);
+      }
+      if (treatmentsResult.status === 'rejected') {
+        console.error('Failed to fetch treatments:', treatmentsResult.reason);
+      }
+      if (appointmentsResult.status === 'rejected') {
+        console.error('Failed to fetch appointments:', appointmentsResult.reason);
+      }
+      if (labWorkResult.status === 'rejected') {
+        console.error('Failed to fetch lab work:', labWorkResult.reason);
+      }
+      if (paymentSummaryResult.status === 'rejected') {
+        console.error('Failed to fetch payment summary:', paymentSummaryResult.reason);
+      }
+
+      console.log('All patient data loaded successfully');
+
     } catch (error) {
-      console.error('Error in fetchPatientData:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
+      console.error('Error in fetchAllPatientData:', error);
+      if (showLoading) {
+        toast({
+          title: "Error",
+          description: "Failed to load patient data. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
+  }, [patientId]);
+
+  const fetchPatientDetails = async () => {
+    if (!patientId) return;
+
+    const { data: patientData, error: patientError } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('patient_id', patientId)
+      .single();
+
+    if (patientError) {
+      console.error('Error fetching patient:', patientError);
+      throw patientError;
+    }
+
+    console.log('Patient data loaded:', patientData);
+    setPatient(patientData);
+    setEditedPatient(patientData);
+    return patientData;
+  };
+
+  const fetchTreatments = async () => {
+    if (!patientId) return;
+
+    const { data: treatmentsData, error: treatmentsError } = await supabase
+      .from('treatments')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('treatment_date', { ascending: false });
+
+    if (treatmentsError) {
+      console.error('Error fetching treatments:', treatmentsError);
+      throw treatmentsError;
+    }
+
+    console.log('Treatments loaded:', treatmentsData?.length || 0);
+    setTreatments(treatmentsData || []);
+    return treatmentsData;
+  };
+
+  const fetchAppointments = async () => {
+    if (!patientId) return;
+
+    const { data: appointmentsData, error: appointmentsError } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('appointment_date', { ascending: false });
+
+    if (appointmentsError) {
+      console.error('Error fetching appointments:', appointmentsError);
+      throw appointmentsError;
+    }
+
+    console.log('Appointments loaded:', appointmentsData?.length || 0);
+    setAppointments(appointmentsData || []);
+    return appointmentsData;
   };
 
   const fetchLabWork = async () => {
     try {
       const labWorkData = await getLabWorkByPatient(patientId!);
+      console.log('Lab work loaded:', labWorkData?.length || 0);
       setPatientLabWork(labWorkData);
+      return labWorkData;
     } catch (error) {
       console.error('Error fetching lab work:', error);
+      throw error;
     }
   };
 
   const fetchPaymentSummary = async () => {
     try {
       const summary = await getPaymentSummaryForPatient(patientId!);
+      console.log('Payment summary loaded:', summary);
       setPaymentSummary(summary);
+      return summary;
     } catch (error) {
       console.error('Error fetching payment summary:', error);
+      throw error;
     }
   };
 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
     try {
+      // Force refresh all hooks first
       await Promise.all([
-        fetchLabWork(),
-        fetchPaymentSummary(),
         refreshLabWork(),
         refreshPayments()
       ]);
+      
+      // Then fetch all patient data
+      await fetchAllPatientData(false);
       
       toast({
         title: "Data Refreshed",
@@ -260,7 +332,7 @@ const PatientRecord = () => {
     }
   };
 
-  // New function to update treatment status
+  // New function to update treatment status with real-time UI update
   const handleTreatmentStatusUpdate = async (treatmentId: string, newStatus: string) => {
     setUpdatingTreatmentId(treatmentId);
     
@@ -280,7 +352,7 @@ const PatientRecord = () => {
         return;
       }
 
-      // Update local state
+      // Update local state immediately for real-time UI update
       setTreatments(prev => prev.map(treatment => 
         treatment.id === treatmentId 
           ? { ...treatment, treatment_status: newStatus }
@@ -314,13 +386,23 @@ const PatientRecord = () => {
     console.log('Edit lab work:', labWork);
   };
 
-  // Function to refresh lab work data after changes
-  const handleLabWorkChange = async () => {
-    await Promise.all([
-      fetchLabWork(),
-      fetchPaymentSummary()
-    ]);
-  };
+  // Function to refresh lab work data after changes with real-time update
+  const handleLabWorkChange = useCallback(async () => {
+    console.log('Lab work changed, refreshing data...');
+    try {
+      // Fetch fresh data immediately
+      await Promise.all([
+        fetchLabWork(),
+        fetchPaymentSummary()
+      ]);
+      
+      // Force a re-render by updating a timestamp
+      setPatientLabWork(prev => [...prev]);
+      
+    } catch (error) {
+      console.error('Error refreshing lab work data:', error);
+    }
+  }, [patientId]);
 
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
@@ -396,7 +478,7 @@ const PatientRecord = () => {
           <p className="text-xl text-slate-600">Patient not found</p>
           <Button 
             className="mt-4" 
-            onClick={() => navigate('/patient-search')}
+            onClick={() => navigate('/search')}
           >
             Back to Search
           </Button>
@@ -435,7 +517,7 @@ const PatientRecord = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate('/patient-search')}
+              onClick={() => navigate('/search')}
             >
               Back to Search
             </Button>
@@ -576,7 +658,7 @@ const PatientRecord = () => {
               </div>
             </div>
 
-            {/* Enhanced Balance Section */}
+            {/* Enhanced Balance Section with Real-time Updates */}
             <div className="mt-6 pt-6 border-t border-slate-200">
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Financial Summary</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -885,7 +967,10 @@ const PatientRecord = () => {
           </TabsContent>
 
           <TabsContent value="payments" className="space-y-4">
-            <PaymentHistory patientId={patient.patient_id} />
+            <PaymentHistory 
+              patientId={patient.patient_id} 
+              key={`payments-${paymentSummary.totalPaid}-${Date.now()}`} // Force re-render when payments change
+            />
           </TabsContent>
 
           <TabsContent value="documents" className="space-y-4">

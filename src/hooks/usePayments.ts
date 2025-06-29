@@ -22,6 +22,7 @@ interface PaymentSummary {
 export const usePayments = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
   const { toast } = useToast();
 
   const fetchPayments = async () => {
@@ -60,6 +61,8 @@ export const usePayments = () => {
   const savePaymentsToStorage = (paymentsData: Payment[]) => {
     try {
       localStorage.setItem('patient_payments', JSON.stringify(paymentsData));
+      // Force update to trigger re-renders
+      setLastUpdate(Date.now());
       return true;
     } catch (error) {
       console.error('Error saving payments to localStorage:', error);
@@ -75,7 +78,7 @@ export const usePayments = () => {
         created_at: new Date().toISOString()
       };
 
-      // Update local state immediately
+      // Update local state immediately for real-time UI update
       const updatedPayments = [...payments, newPayment];
       setPayments(updatedPayments);
       
@@ -87,10 +90,16 @@ export const usePayments = () => {
         throw new Error('Failed to save payment data');
       }
 
-      // Force a re-render by updating the state again
+      // Force multiple re-renders to ensure UI updates
       setTimeout(() => {
         setPayments([...updatedPayments]);
+        setLastUpdate(Date.now());
       }, 100);
+
+      setTimeout(() => {
+        setPayments([...updatedPayments]);
+        setLastUpdate(Date.now());
+      }, 500);
 
       return newPayment;
     } catch (error) {
@@ -115,6 +124,9 @@ export const usePayments = () => {
         throw new Error('Failed to update payment data');
       }
 
+      // Force re-render
+      setLastUpdate(Date.now());
+
       return updatedPayments.find(p => p.id === paymentId);
     } catch (error) {
       console.error('Error updating payment:', error);
@@ -135,6 +147,9 @@ export const usePayments = () => {
         setPayments(payments);
         throw new Error('Failed to delete payment data');
       }
+
+      // Force re-render
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Error deleting payment:', error);
       throw error;
@@ -142,11 +157,15 @@ export const usePayments = () => {
   };
 
   const getPaymentsByPatient = async (patientId: string): Promise<Payment[]> => {
+    // Always fetch fresh data
+    await fetchPayments();
     return payments.filter(payment => payment.patient_id === patientId);
   };
 
   const getPaymentSummaryForPatient = async (patientId: string): Promise<PaymentSummary> => {
     try {
+      console.log('Calculating payment summary for patient:', patientId);
+      
       // Get all treatments for this patient to calculate total cost
       const { data: treatments, error: treatmentError } = await supabase
         .from('treatments')
@@ -172,17 +191,21 @@ export const usePayments = () => {
       const labWorkCosts = labWork?.reduce((sum, work) => sum + (work.cost || 0), 0) || 0;
       const totalCost = treatmentCosts + labWorkCosts;
       
-      // Get all payments for this patient
+      // Get all payments for this patient (fresh data)
+      await fetchPayments();
       const patientPayments = payments.filter(payment => payment.patient_id === patientId);
       const totalPaid = patientPayments.reduce((sum, payment) => sum + payment.amount, 0);
       
       const balance = totalCost - totalPaid;
 
-      return {
+      const summary = {
         totalCost,
         totalPaid,
         balance
       };
+
+      console.log('Payment summary calculated:', summary);
+      return summary;
     } catch (error) {
       console.error('Error calculating payment summary:', error);
       return {
@@ -198,24 +221,50 @@ export const usePayments = () => {
     try {
       setPayments([]);
       localStorage.removeItem('patient_payments');
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Error clearing payments:', error);
       throw error;
     }
   };
 
-  // Function to refresh payments data
+  // Function to refresh payments data with force update
   const refreshPayments = async () => {
+    console.log('Force refreshing payments data...');
     await fetchPayments();
+    setLastUpdate(Date.now());
+    
+    // Force multiple updates to ensure UI refresh
+    setTimeout(() => {
+      setLastUpdate(Date.now());
+    }, 100);
+    
+    setTimeout(() => {
+      setLastUpdate(Date.now());
+    }, 500);
   };
 
   useEffect(() => {
     fetchPayments();
   }, []);
 
+  // Add effect to listen for storage changes from other tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'patient_payments') {
+        console.log('Payment data changed in another tab, refreshing...');
+        fetchPayments();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   return {
     payments,
     isLoading,
+    lastUpdate, // Expose this for components that need to track updates
     fetchPayments,
     addPayment,
     updatePayment,

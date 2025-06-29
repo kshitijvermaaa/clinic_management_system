@@ -52,11 +52,14 @@ export const useLabWork = () => {
   const [labWork, setLabWork] = useState<LabWork[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updateTrigger, setUpdateTrigger] = useState(0);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
   const { toast } = useToast();
 
   const fetchLabWork = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching lab work data...');
+      
       const { data, error } = await supabase
         .from('lab_work')
         .select(`
@@ -82,7 +85,9 @@ export const useLabWork = () => {
         return;
       }
 
+      console.log('Lab work data loaded:', data?.length || 0, 'items');
       setLabWork(data || []);
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Unexpected error:', error);
       toast({
@@ -97,6 +102,8 @@ export const useLabWork = () => {
 
   const createLabWork = async (labWorkData: Omit<LabWork, 'id' | 'created_at' | 'updated_at' | 'patients' | 'treatments'>) => {
     try {
+      console.log('Creating lab work:', labWorkData);
+      
       const { data, error } = await supabase
         .from('lab_work')
         .insert(labWorkData)
@@ -118,12 +125,18 @@ export const useLabWork = () => {
         throw error;
       }
 
+      console.log('Lab work created successfully:', data);
+
       // Update local state immediately with the new lab work
       setLabWork(prev => [data, ...prev]);
       
-      // Trigger a refresh to ensure consistency
+      // Force multiple re-renders to ensure UI updates
+      setUpdateTrigger(prev => prev + 1);
+      setLastUpdate(Date.now());
+      
       setTimeout(() => {
         setUpdateTrigger(prev => prev + 1);
+        setLastUpdate(Date.now());
       }, 100);
 
       return data;
@@ -135,6 +148,8 @@ export const useLabWork = () => {
 
   const updateLabWork = async (labWorkId: string, updates: Partial<LabWork>) => {
     try {
+      console.log('Updating lab work:', labWorkId, updates);
+      
       // Update local state immediately for real-time UI updates (optimistic update)
       const originalLabWork = [...labWork];
       setLabWork(prev => prev.map(work => 
@@ -165,15 +180,26 @@ export const useLabWork = () => {
         throw error;
       }
 
+      console.log('Lab work updated successfully:', data);
+
       // Update local state with the server response
       setLabWork(prev => prev.map(work => 
         work.id === labWorkId ? data : work
       ));
 
-      // Force a re-render to ensure UI consistency
+      // Force multiple re-renders to ensure UI consistency
+      setUpdateTrigger(prev => prev + 1);
+      setLastUpdate(Date.now());
+      
       setTimeout(() => {
         setUpdateTrigger(prev => prev + 1);
+        setLastUpdate(Date.now());
       }, 100);
+
+      setTimeout(() => {
+        setUpdateTrigger(prev => prev + 1);
+        setLastUpdate(Date.now());
+      }, 500);
 
       return data;
     } catch (error) {
@@ -184,6 +210,8 @@ export const useLabWork = () => {
 
   const deleteLabWork = async (labWorkId: string) => {
     try {
+      console.log('Deleting lab work:', labWorkId);
+      
       // Store original state for potential rollback
       const originalLabWork = [...labWork];
       
@@ -202,10 +230,11 @@ export const useLabWork = () => {
         throw error;
       }
 
-      // Force a re-render to ensure UI consistency
-      setTimeout(() => {
-        setUpdateTrigger(prev => prev + 1);
-      }, 100);
+      console.log('Lab work deleted successfully');
+
+      // Force re-render to ensure UI consistency
+      setUpdateTrigger(prev => prev + 1);
+      setLastUpdate(Date.now());
 
     } catch (error) {
       console.error('Error in deleteLabWork:', error);
@@ -215,6 +244,8 @@ export const useLabWork = () => {
 
   const getLabWorkByPatient = async (patientId: string) => {
     try {
+      console.log('Fetching lab work for patient:', patientId);
+      
       const { data, error } = await supabase
         .from('lab_work')
         .select(`
@@ -236,6 +267,7 @@ export const useLabWork = () => {
         throw error;
       }
 
+      console.log('Patient lab work loaded:', data?.length || 0, 'items');
       return data || [];
     } catch (error) {
       console.error('Error in getLabWorkByPatient:', error);
@@ -407,10 +439,24 @@ export const useLabWork = () => {
     }
   };
 
-  // Function to force refresh lab work data
+  // Function to force refresh lab work data with multiple update triggers
   const refreshLabWork = async () => {
+    console.log('Force refreshing lab work data...');
     await fetchLabWork();
+    
+    // Force multiple re-renders to ensure UI updates
     setUpdateTrigger(prev => prev + 1);
+    setLastUpdate(Date.now());
+    
+    setTimeout(() => {
+      setUpdateTrigger(prev => prev + 1);
+      setLastUpdate(Date.now());
+    }, 100);
+    
+    setTimeout(() => {
+      setUpdateTrigger(prev => prev + 1);
+      setLastUpdate(Date.now());
+    }, 500);
   };
 
   useEffect(() => {
@@ -420,6 +466,7 @@ export const useLabWork = () => {
   return {
     labWork,
     isLoading,
+    lastUpdate, // Expose this for components that need to track updates
     fetchLabWork,
     createLabWork,
     updateLabWork,

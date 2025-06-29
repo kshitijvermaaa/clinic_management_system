@@ -17,7 +17,7 @@ interface PaymentHistoryProps {
 
 export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => {
   const { toast } = useToast();
-  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient, refreshPayments } = usePayments();
+  const { addPayment, updatePayment, deletePayment, getPaymentsByPatient, getPaymentSummaryForPatient, refreshPayments, lastUpdate } = usePayments();
   const [patientPayments, setPatientPayments] = useState<any[]>([]);
   const [paymentSummary, setPaymentSummary] = useState({
     totalCost: 0,
@@ -34,19 +34,33 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     notes: ''
   });
 
+  // Auto-refresh when lastUpdate changes (from the hook)
   useEffect(() => {
+    console.log('Payment hook lastUpdate changed, refreshing data...');
     fetchPaymentData();
+  }, [lastUpdate, patientId]);
+
+  // Initial load
+  useEffect(() => {
+    if (patientId) {
+      console.log('PatientId changed, loading payment data for:', patientId);
+      fetchPaymentData();
+    }
   }, [patientId]);
 
   const fetchPaymentData = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching payment data for patient:', patientId);
       
-      // Get payment summary and patient payments
+      // Get payment summary and patient payments in parallel
       const [summary, payments] = await Promise.all([
         getPaymentSummaryForPatient(patientId),
         getPaymentsByPatient(patientId)
       ]);
+      
+      console.log('Payment summary loaded:', summary);
+      console.log('Patient payments loaded:', payments?.length || 0);
       
       setPaymentSummary(summary);
       setPatientPayments(payments);
@@ -66,6 +80,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
     try {
+      console.log('Manual refresh triggered');
       await refreshPayments();
       await fetchPaymentData();
       
@@ -96,6 +111,8 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     }
 
     try {
+      console.log('Adding new payment:', newPayment);
+      
       const paymentData = {
         patient_id: patientId,
         amount: parseFloat(newPayment.amount),
@@ -148,6 +165,8 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     }
 
     try {
+      console.log('Updating payment:', editingPayment.id, newPayment);
+      
       const updates = {
         amount: parseFloat(newPayment.amount),
         payment_method: newPayment.paymentMethod,
@@ -184,6 +203,8 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
     }
 
     try {
+      console.log('Deleting payment:', paymentId);
+      
       await deletePayment(paymentId);
       
       // Refresh payment data immediately
@@ -320,7 +341,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {/* Enhanced Balance Summary */}
+          {/* Enhanced Balance Summary with Real-time Updates */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-2">
