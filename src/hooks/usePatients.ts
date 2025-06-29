@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -104,10 +103,15 @@ export const usePatients = () => {
 
   const getPatientById = async (patientId: string) => {
     try {
+      // Validate patientId before making the request
+      if (!patientId || patientId.trim() === '') {
+        throw new Error('Patient ID is required and cannot be empty');
+      }
+
       const { data, error } = await supabase
         .from('patients')
         .select('*')
-        .eq('patient_id', patientId)
+        .eq('patient_id', patientId.trim())
         .single();
 
       if (error) {
