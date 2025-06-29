@@ -339,36 +339,38 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
 
         {/* Patient Selection - Only show if no patient is preselected */}
         {!hasPreselectedPatient && (
-          <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm overflow-visible">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-lg">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 bg-blue-600 rounded-lg">
-                  <UserIcon className="w-5 h-5 text-white" />
-                </div>
-                Patient Selection
-              </CardTitle>
-              <CardDescription className="text-slate-600">
-                Select the patient for this treatment session
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-6 overflow-visible">
-              {isLoadingPatient ? (
-                <div className="flex items-center justify-center p-4">
-                  <div className="text-slate-600">Loading patient information...</div>
-                </div>
-              ) : (
-                <div className="w-full max-w-2xl mx-auto overflow-visible">
-                  <PatientSelector
-                    selectedPatient={selectedPatient}
-                    onPatientSelect={setSelectedPatient}
-                    label="Patient"
-                    required={true}
-                    placeholder="Search by patient name or ID..."
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <div style={{ position: 'relative', zIndex: 1000 }}>
+            <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-lg">
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <div className="p-2 bg-blue-600 rounded-lg">
+                    <UserIcon className="w-5 h-5 text-white" />
+                  </div>
+                  Patient Selection
+                </CardTitle>
+                <CardDescription className="text-slate-600">
+                  Select the patient for this treatment session
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6" style={{ overflow: 'visible' }}>
+                {isLoadingPatient ? (
+                  <div className="flex items-center justify-center p-4">
+                    <div className="text-slate-600">Loading patient information...</div>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-2xl mx-auto">
+                    <PatientSelector
+                      selectedPatient={selectedPatient}
+                      onPatientSelect={setSelectedPatient}
+                      label="Patient"
+                      required={true}
+                      placeholder="Search by patient name or ID..."
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* Patient Info Display - Show when patient is preselected */}

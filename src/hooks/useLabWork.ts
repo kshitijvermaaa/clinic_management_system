@@ -108,7 +108,10 @@ export const useLabWork = () => {
 
   const updateLabWork = async (labWorkId: string, updates: Partial<LabWork>) => {
     try {
-      // Update local state immediately for real-time UI updates
+      // Store original state for potential rollback
+      const originalLabWork = [...labWork];
+      
+      // Update local state immediately for real-time UI updates (optimistic update)
       setLabWork(prev => prev.map(work => 
         work.id === labWorkId ? { ...work, ...updates } : work
       ));
@@ -123,11 +126,11 @@ export const useLabWork = () => {
       if (error) {
         console.error('Error updating lab work:', error);
         // Revert the optimistic update on error
-        await fetchLabWork();
+        setLabWork(originalLabWork);
         throw error;
       }
 
-      // Refresh from server to ensure consistency
+      // Refresh from server to ensure consistency after successful update
       await fetchLabWork();
       return data;
     } catch (error) {
@@ -138,7 +141,10 @@ export const useLabWork = () => {
 
   const deleteLabWork = async (labWorkId: string) => {
     try {
-      // Update local state immediately
+      // Store original state for potential rollback
+      const originalLabWork = [...labWork];
+      
+      // Update local state immediately (optimistic update)
       setLabWork(prev => prev.filter(work => work.id !== labWorkId));
 
       const { error } = await supabase
@@ -149,11 +155,11 @@ export const useLabWork = () => {
       if (error) {
         console.error('Error deleting lab work:', error);
         // Revert the optimistic update on error
-        await fetchLabWork();
+        setLabWork(originalLabWork);
         throw error;
       }
 
-      // No need to fetch again since we already updated locally
+      // No need to fetch again since we already updated locally and it was successful
     } catch (error) {
       console.error('Error in deleteLabWork:', error);
       throw error;

@@ -79,12 +79,13 @@ export const PatientSelector: React.FC<PatientSelectorProps> = ({
   };
 
   return (
-    <div className="space-y-2 relative">
+    <div className="space-y-2">
       <Label className="text-sm font-medium text-slate-700">
         {label} {required && '*'}
       </Label>
       
-      <div className="relative">
+      {/* Container with proper stacking context */}
+      <div className="relative" style={{ zIndex: 9999 }}>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
           <Input
@@ -98,9 +99,20 @@ export const PatientSelector: React.FC<PatientSelectorProps> = ({
           />
         </div>
 
-        {/* Fixed Dropdown with proper z-index and positioning */}
+        {/* Portal-like dropdown with fixed positioning */}
         {showDropdown && (
-          <div className="absolute top-full left-0 right-0 z-[9999] mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+          <div 
+            className="fixed bg-white border border-slate-200 rounded-lg shadow-2xl max-h-64 overflow-y-auto"
+            style={{
+              zIndex: 99999,
+              minWidth: '300px',
+              maxWidth: '500px',
+              top: 'auto',
+              left: 'auto',
+              transform: 'translateY(4px)'
+            }}
+            onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking dropdown
+          >
             {filteredPatients.length === 0 ? (
               <div className="p-3 text-center text-slate-500 text-sm">
                 {searchValue ? 'No patients found' : 'No patients available'}
