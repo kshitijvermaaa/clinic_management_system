@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -56,7 +55,22 @@ export const useAppointments = () => {
       }
 
       console.log('Appointments fetched successfully:', data);
-      setAppointments(data || []);
+      
+      // Sort appointments: scheduled first (by date/time), then others
+      const sortedAppointments = (data || []).sort((a, b) => {
+        // First, sort by status - scheduled appointments first
+        if (a.status === 'scheduled' && b.status !== 'scheduled') return -1;
+        if (a.status !== 'scheduled' && b.status === 'scheduled') return 1;
+        
+        // Then sort by date
+        const dateComparison = new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime();
+        if (dateComparison !== 0) return dateComparison;
+        
+        // Finally sort by time
+        return a.appointment_time.localeCompare(b.appointment_time);
+      });
+      
+      setAppointments(sortedAppointments);
     } catch (error) {
       console.error('Unexpected error:', error);
       toast({

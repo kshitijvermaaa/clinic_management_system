@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CreditCard, Plus, IndianRupee, Receipt, Calendar } from 'lucide-react';
+import { CreditCard, Plus, Receipt, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -57,15 +57,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
       
       // For now, we'll simulate payment data since the payments table doesn't exist yet
       // In a real implementation, you'd create a payments table
-      const mockPayments: Payment[] = [
-        {
-          id: '1',
-          amount: 2000,
-          payment_date: '2025-06-10',
-          payment_method: 'Cash',
-          notes: 'Initial consultation payment'
-        }
-      ];
+      const mockPayments: Payment[] = [];
       
       const totalPaid = mockPayments.reduce((sum, payment) => sum + payment.amount, 0);
       const balance = totalCost - totalPaid;
@@ -219,7 +211,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-2">
-                <IndianRupee className="w-4 h-4 text-blue-600" />
+                <Receipt className="w-4 h-4 text-blue-600" />
                 <span className="text-sm font-medium text-blue-600">Outstanding Balance</span>
               </div>
               <div className="text-2xl font-bold text-blue-900">
@@ -258,7 +250,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
                 <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <IndianRupee className="w-4 h-4 text-green-600" />
+                      <Receipt className="w-4 h-4 text-green-600" />
                     </div>
                     <div>
                       <div className="font-medium">₹{payment.amount.toLocaleString()}</div>

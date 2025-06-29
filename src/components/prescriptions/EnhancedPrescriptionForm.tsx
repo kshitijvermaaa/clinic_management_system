@@ -9,7 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { usePatients } from '@/hooks/usePatients';
 import { useTreatments } from '@/hooks/useTreatments';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
-import { Plus, Trash2, FileText, User, Stethoscope, Search, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, FileText, User, Stethoscope, CheckCircle } from 'lucide-react';
+import { PatientSelector } from '@/components/common/PatientSelector';
 
 interface Medicine {
   id: string;
@@ -39,11 +40,9 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
   const { createPrescription } = usePrescriptions();
   
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
-  const [patientSearchValue, setPatientSearchValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
-    patientId: initialPatientId || '',
     treatmentId: initialTreatmentId || '',
     diagnosis: '',
     symptoms: '',
@@ -60,11 +59,10 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
       const patient = patients.find(p => p.patient_id === initialPatientId);
       if (patient) {
         setSelectedPatient(patient);
-        setPatientSearchValue(patient.patient_id);
-        setFormData(prev => ({ ...prev, patientId: patient.patient_id }));
+        setFormData(prev => ({ ...prev, treatmentId: initialTreatmentId || '' }));
       }
     }
-  }, [initialPatientId, patients]);
+  }, [initialPatientId, patients, initialTreatmentId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,10 +113,9 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
       onOpenChange(false);
       
       // Reset form
-      setFormData({ patientId: '', treatmentId: '', diagnosis: '', symptoms: '', notes: '' });
+      setFormData({ treatmentId: '', diagnosis: '', symptoms: '', notes: '' });
       setMedicines([{ id: '1', name: '', dosage: '', frequency: '', duration: '', instructions: '' }]);
       setSelectedPatient(null);
-      setPatientSearchValue('');
 
     } catch (error) {
       console.error('Error creating prescription:', error);
@@ -134,39 +131,6 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handlePatientSearch = (patientCode: string) => {
-    const patient = patients.find(p => 
-      p.patient_id.toLowerCase() === patientCode.toLowerCase() ||
-      p.full_name.toLowerCase().includes(patientCode.toLowerCase())
-    );
-    
-    if (patient) {
-      setSelectedPatient(patient);
-      setFormData(prev => ({ ...prev, patientId: patient.patient_id }));
-      toast({
-        title: "Patient Found",
-        description: `Linked to ${patient.full_name} (${patient.patient_id})`,
-      });
-    } else {
-      setSelectedPatient(null);
-      setFormData(prev => ({ ...prev, patientId: '' }));
-      toast({
-        title: "Patient Not Found",
-        description: "Please check the patient code and try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handlePatientSearchInputChange = (value: string) => {
-    setPatientSearchValue(value);
-    // Clear selected patient if input is manually changed
-    if (selectedPatient && value !== selectedPatient.patient_id) {
-      setSelectedPatient(null);
-      setFormData(prev => ({ ...prev, patientId: '' }));
-    }
   };
 
   const addMedicine = () => {
@@ -216,27 +180,18 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
               <User className="w-5 h-5 text-blue-600" />
               Patient Information
             </h3>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="patient-search">Patient Code/Name *</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    id="patient-search"
-                    placeholder="Enter patient code or name"
-                    value={patientSearchValue}
-                    onChange={(e) => handlePatientSearchInputChange(e.target.value)}
-                    required 
-                  />
-                  <Button 
-                    type="button"
-                    variant="outline"
-                    onClick={() => handlePatientSearch(patientSearchValue)}
-                    className="px-3"
-                  >
-                    <Search className="w-4 h-4" />
-                  </Button>
-                </div>
+              <div className="md:col-span-1">
+                <PatientSelector
+                  selectedPatient={selectedPatient}
+                  onPatientSelect={setSelectedPatient}
+                  label="Patient"
+                  required={true}
+                  placeholder="Search by patient name or ID..."
+                />
               </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="treatment-select">Related Treatment (Optional)</Label>
                 <Select 
@@ -257,25 +212,6 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
                 </Select>
               </div>
             </div>
-
-            {selectedPatient && (
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <strong>Linked Patient:</strong> {selectedPatient.full_name} | 
-                  <strong> Phone:</strong> {selectedPatient.mobile_number} | 
-                  <strong> ID:</strong> {selectedPatient.patient_id}
-                </div>
-              </div>
-            )}
-
-            {!selectedPatient && patientSearchValue && (
-              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="text-sm text-red-700">
-                  <strong>Warning:</strong> No valid patient selected. Please search for and select a patient before submitting.
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Medical Information */}

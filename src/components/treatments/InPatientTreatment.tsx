@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Stethoscope, Calendar as CalendarIcon, Save, FileText, Upload, ArrowLeft } from 'lucide-react';
+import { Stethoscope, Calendar as CalendarIcon, Save, FileText, ArrowLeft, AlertTriangle, User as UserIcon, Plus, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { VisualTeethSelector } from '@/components/appointments/VisualTeethSelector';
+import { PatientSelector } from '@/components/common/PatientSelector';
 
 interface ToothSelection {
   tooth: string;
@@ -35,9 +35,13 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [treatmentData, setTreatmentData] = useState({
+    patientComplaint: '',
+    painLevel: '',
+    doctorAnalysis: '',
     procedure_done: '',
-    materials_used: '',
+    customProcedure: '',
     notes: '',
     treatment_cost: '',
     teeth_involved: [] as ToothSelection[],
@@ -48,11 +52,57 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
   const [documents, setDocuments] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Common dental procedures
+  const commonProcedures = [
+    'Routine Checkup',
+    'Teeth Cleaning',
+    'Dental Filling',
+    'Root Canal Treatment',
+    'Tooth Extraction',
+    'Crown Placement',
+    'Bridge Work',
+    'Scaling & Polishing',
+    'Orthodontic Consultation',
+    'Wisdom Tooth Extraction',
+    'Dental Implant',
+    'Veneer Placement',
+    'Teeth Whitening',
+    'Gum Treatment',
+    'Emergency Treatment',
+    'Follow-up Visit'
+  ];
+
+  // Initialize with existing patient if provided
+  useEffect(() => {
+    if (patientId && patientName) {
+      setSelectedPatient({
+        patient_id: patientId,
+        full_name: patientName
+      });
+    }
+  }, [patientId, patientName]);
+
   const handleInputChange = (field: string, value: string) => {
     setTreatmentData(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleProcedureSelect = (procedure: string) => {
+    if (procedure === 'custom') {
+      handleInputChange('procedure_done', '');
+    } else {
+      handleInputChange('procedure_done', procedure);
+      handleInputChange('customProcedure', '');
+    }
+  };
+
+  const addCustomProcedure = () => {
+    if (treatmentData.customProcedure.trim()) {
+      handleInputChange('procedure_done', treatmentData.customProcedure.trim());
+      handleInputChange('customProcedure', '');
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,10 +142,10 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
   };
 
   const handleSaveTreatment = async () => {
-    if (!patientId || !treatmentData.procedure_done) {
+    if (!selectedPatient || !treatmentData.patientComplaint || !treatmentData.procedure_done) {
       toast({
         title: "Error",
-        description: "Patient ID and procedure are required",
+        description: "Patient, complaint, and procedure are required",
         variant: "destructive",
       });
       return;
@@ -108,14 +158,21 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
         `${selection.tooth}:${selection.parts.join(',')}`
       );
 
+      // Combine patient complaint, pain level, and doctor analysis into notes
+      const combinedNotes = [
+        `Patient Complaint: ${treatmentData.patientComplaint}`,
+        treatmentData.painLevel ? `Pain Level: ${treatmentData.painLevel}/10` : '',
+        treatmentData.doctorAnalysis ? `Doctor's Analysis: ${treatmentData.doctorAnalysis}` : '',
+        treatmentData.notes ? `Additional Notes: ${treatmentData.notes}` : ''
+      ].filter(Boolean).join('\n\n');
+
       // Save treatment
       const { data: treatment, error: treatmentError } = await supabase
         .from('treatments')
         .insert({
-          patient_id: patientId,
+          patient_id: selectedPatient.patient_id,
           procedure_done: treatmentData.procedure_done,
-          materials_used: treatmentData.materials_used || null,
-          notes: treatmentData.notes || null,
+          notes: combinedNotes,
           treatment_cost: treatmentData.treatment_cost ? parseFloat(treatmentData.treatment_cost) : null,
           teeth_involved: teethInvolvedStrings.length > 0 ? teethInvolvedStrings : null,
           treatment_date: new Date().toISOString().split('T')[0],
@@ -135,7 +192,7 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
         const { error: appointmentError } = await supabase
           .from('appointments')
           .insert({
-            patient_id: patientId,
+            patient_id: selectedPatient.patient_id,
             appointment_date: format(nextAppointmentDate, 'yyyy-MM-dd'),
             appointment_time: '10:00:00',
             appointment_type: 'followup',
@@ -164,7 +221,7 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
       });
 
       // Navigate back or to patient record
-      navigate(`/patient-record?patient=${patientId}`);
+      navigate(`/patient-record?patient=${selectedPatient.patient_id}`);
 
     } catch (error) {
       console.error('Error saving treatment:', error);
@@ -176,6 +233,13 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const getPainLevelColor = (level: string) => {
+    const num = parseInt(level);
+    if (num <= 3) return 'bg-green-100 text-green-700';
+    if (num <= 6) return 'bg-yellow-100 text-yellow-700';
+    return 'bg-red-100 text-red-700';
   };
 
   return (
@@ -201,7 +265,7 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
                 </h1>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <p className="text-blue-100">
-                    Recording treatment for: <span className="font-semibold text-white">{patientName || 'Unknown Patient'}</span>
+                    Recording treatment session
                   </p>
                   {visitType && (
                     <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">
@@ -220,72 +284,234 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
               >
                 Dashboard
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/patient-record?patient=${patientId}`)}
-                className="bg-white/20 border-white/30 text-white hover:bg-white/30 backdrop-blur-sm"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                Patient Record
-              </Button>
+              {selectedPatient && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/patient-record?patient=${selectedPatient.patient_id}`)}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30 backdrop-blur-sm"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Patient Record
+                </Button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Main Treatment Form */}
+        {/* Patient Selection */}
         <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
           <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-lg">
             <CardTitle className="flex items-center gap-3 text-xl">
               <div className="p-2 bg-blue-600 rounded-lg">
-                <Stethoscope className="w-5 h-5 text-white" />
+                <UserIcon className="w-5 h-5 text-white" />
               </div>
-              Treatment Details
+              Patient Selection
             </CardTitle>
             <CardDescription className="text-slate-600">
-              Record the treatment procedure and relevant information
+              Select the patient for this treatment session
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 space-y-8">
-            {/* Basic Information Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="procedure" className="text-sm font-semibold text-slate-700">
-                  Procedure Done *
-                </Label>
+          <CardContent className="p-6">
+            <PatientSelector
+              selectedPatient={selectedPatient}
+              onPatientSelect={setSelectedPatient}
+              label="Patient"
+              required={true}
+              placeholder="Search by patient name or ID..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Step 1: Patient Complaint */}
+        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-red-50 to-slate-50 rounded-t-lg">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-red-600 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-white" />
+              </div>
+              Step 1: Patient Complaint
+            </CardTitle>
+            <CardDescription className="text-slate-600">
+              Record the patient's chief complaint and symptoms
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <div className="space-y-3">
+              <Label htmlFor="patient-complaint" className="text-sm font-semibold text-slate-700">
+                Chief Complaint *
+              </Label>
+              <Textarea
+                id="patient-complaint"
+                placeholder="Describe the patient's main complaint and symptoms in detail..."
+                value={treatmentData.patientComplaint}
+                onChange={(e) => handleInputChange('patientComplaint', e.target.value)}
+                className="border-slate-300 focus:border-red-500 focus:ring-red-500/20 min-h-[100px]"
+                required
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <Label htmlFor="pain-level" className="text-sm font-semibold text-slate-700">
+                Pain Level (1-10)
+              </Label>
+              <Select value={treatmentData.painLevel} onValueChange={(value) => handleInputChange('painLevel', value)}>
+                <SelectTrigger className="border-slate-300 focus:border-red-500">
+                  <SelectValue placeholder="Rate pain level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({length: 10}, (_, i) => (
+                    <SelectItem key={i+1} value={(i+1).toString()}>
+                      <div className="flex items-center gap-2">
+                        <span>{i+1}</span>
+                        {i === 0 && <span className="text-green-600">(No Pain)</span>}
+                        {i === 4 && <span className="text-yellow-600">(Moderate)</span>}
+                        {i === 9 && <span className="text-red-600">(Severe Pain)</span>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {treatmentData.painLevel && (
+                <Badge className={getPainLevelColor(treatmentData.painLevel)}>
+                  Pain Level: {treatmentData.painLevel}/10
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 2: Doctor's Analysis */}
+        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-slate-50 rounded-t-lg">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-purple-600 rounded-lg">
+                <Stethoscope className="w-5 h-5 text-white" />
+              </div>
+              Step 2: Doctor's Analysis
+            </CardTitle>
+            <CardDescription className="text-slate-600">
+              Clinical findings, examination results, and diagnosis
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <div className="space-y-3">
+              <Label htmlFor="doctor-analysis" className="text-sm font-semibold text-slate-700">
+                Clinical Analysis & Diagnosis
+              </Label>
+              <Textarea
+                id="doctor-analysis"
+                placeholder="Doctor's clinical findings, examination results, and preliminary diagnosis..."
+                value={treatmentData.doctorAnalysis}
+                onChange={(e) => handleInputChange('doctorAnalysis', e.target.value)}
+                className="border-slate-300 focus:border-purple-500 focus:ring-purple-500/20 min-h-[100px]"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 3: Visual Teeth Selector */}
+        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-orange-50 to-slate-50 rounded-t-lg">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-orange-600 rounded-lg">
+                <Stethoscope className="w-5 h-5 text-white" />
+              </div>
+              Step 3: Teeth Involved
+            </CardTitle>
+            <CardDescription className="text-slate-600">
+              Select the teeth and specific parts involved in treatment
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="bg-white rounded-xl p-4 border border-orange-200">
+              <VisualTeethSelector
+                selectedTeeth={treatmentData.teeth_involved}
+                onTeethChange={(teeth) => setTreatmentData(prev => ({ ...prev, teeth_involved: teeth }))}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step 4: Treatment Details */}
+        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-slate-50 rounded-t-lg">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-green-600 rounded-lg">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              Step 4: Treatment Details
+            </CardTitle>
+            <CardDescription className="text-slate-600">
+              Specify the procedure performed and treatment information
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Procedure Selection */}
+            <div className="space-y-4">
+              <Label className="text-sm font-semibold text-slate-700">Procedure Done *</Label>
+              <Select onValueChange={handleProcedureSelect}>
+                <SelectTrigger className="border-slate-300 focus:border-green-500">
+                  <SelectValue placeholder="Select procedure performed" />
+                </SelectTrigger>
+                <SelectContent>
+                  {commonProcedures.map((procedure) => (
+                    <SelectItem key={procedure} value={procedure}>
+                      {procedure}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">+ Add Custom Procedure</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Custom Procedure Input */}
+              <div className="flex gap-2">
                 <Input
-                  id="procedure"
-                  placeholder="e.g., Root Canal Treatment, Extraction, Cleaning"
-                  value={treatmentData.procedure_done}
-                  onChange={(e) => handleInputChange('procedure_done', e.target.value)}
-                  className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
+                  placeholder="Enter custom procedure"
+                  value={treatmentData.customProcedure}
+                  onChange={(e) => handleInputChange('customProcedure', e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomProcedure())}
+                  className="border-slate-300 focus:border-green-500"
                 />
+                <Button type="button" variant="outline" onClick={addCustomProcedure}>
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
 
+              {/* Selected Procedure Display */}
+              {treatmentData.procedure_done && (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-green-800">
+                      Selected: {treatmentData.procedure_done}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleInputChange('procedure_done', '')}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Treatment Cost and Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label htmlFor="cost" className="text-sm font-semibold text-slate-700">
-                  Treatment Cost
+                  Treatment Cost (₹)
                 </Label>
                 <Input
                   id="cost"
                   type="number"
+                  step="0.01"
                   placeholder="0.00"
                   value={treatmentData.treatment_cost}
                   onChange={(e) => handleInputChange('treatment_cost', e.target.value)}
-                  className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="materials" className="text-sm font-semibold text-slate-700">
-                  Materials Used
-                </Label>
-                <Input
-                  id="materials"
-                  placeholder="e.g., Amalgam, Composite, Local Anesthesia"
-                  value={treatmentData.materials_used}
-                  onChange={(e) => handleInputChange('materials_used', e.target.value)}
-                  className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
+                  className="border-slate-300 focus:border-green-500 focus:ring-green-500/20"
                 />
               </div>
 
@@ -297,7 +523,7 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
                     handleInputChange('treatment_status', value)
                   }
                 >
-                  <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20">
+                  <SelectTrigger className="border-slate-300 focus:border-green-500">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -308,28 +534,30 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
                 </Select>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Visual Teeth Selector */}
-            <div className="space-y-4">
-              <Label className="text-sm font-semibold text-slate-700">
-                Teeth Involved (Visual Selection)
-              </Label>
-              <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-4">
-                <VisualTeethSelector
-                  selectedTeeth={treatmentData.teeth_involved}
-                  onTeethChange={(teeth) => setTreatmentData(prev => ({ ...prev, teeth_involved: teeth }))}
-                />
+        {/* Step 5: Treatment Notes */}
+        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-slate-50 rounded-t-lg">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <FileText className="w-5 h-5 text-white" />
               </div>
-            </div>
-
-            {/* Treatment Notes */}
+              Step 5: Additional Notes
+            </CardTitle>
+            <CardDescription className="text-slate-600">
+              Additional observations, instructions, and follow-up notes
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
             <div className="space-y-3">
               <Label htmlFor="notes" className="text-sm font-semibold text-slate-700">
                 Treatment Notes & Observations
               </Label>
               <Textarea
                 id="notes"
-                placeholder="Describe the treatment procedure, patient's condition, any complications, medications prescribed..."
+                placeholder="Additional observations, patient response, follow-up instructions, medications prescribed..."
                 value={treatmentData.notes}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
                 className="min-h-[120px] border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
@@ -343,7 +571,7 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
                 Upload Treatment Documents
               </Label>
               <div className="flex items-center gap-4 p-4 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:border-blue-400 transition-colors">
-                <Upload className="w-6 h-6 text-slate-400" />
+                <FileText className="w-6 h-6 text-slate-400" />
                 <div className="flex-1">
                   <Input
                     id="documents"
@@ -395,31 +623,33 @@ export const InPatientTreatment: React.FC<InPatientTreatmentProps> = ({
                 </PopoverContent>
               </Popover>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-200">
-              <Button
-                onClick={handleSaveTreatment}
-                disabled={isLoading || !treatmentData.procedure_done}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 py-3"
-                size="lg"
-              >
-                <Save className="w-5 h-5 mr-2" />
-                {isLoading ? 'Saving Treatment...' : 'Save Treatment Record'}
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/patient-record?patient=${patientId}`)}
-                className="sm:w-auto border-slate-300 hover:bg-slate-50 py-3"
-                size="lg"
-              >
-                <FileText className="w-5 h-5 mr-2" />
-                View Patient Record
-              </Button>
-            </div>
           </CardContent>
         </Card>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-6">
+          <Button
+            onClick={handleSaveTreatment}
+            disabled={isLoading || !selectedPatient || !treatmentData.patientComplaint || !treatmentData.procedure_done}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 py-3"
+            size="lg"
+          >
+            <Save className="w-5 h-5 mr-2" />
+            {isLoading ? 'Saving Treatment...' : 'Save Treatment Record'}
+          </Button>
+          
+          {selectedPatient && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/patient-record?patient=${selectedPatient.patient_id}`)}
+              className="sm:w-auto border-slate-300 hover:bg-slate-50 py-3"
+              size="lg"
+            >
+              <FileText className="w-5 h-5 mr-2" />
+              View Patient Record
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

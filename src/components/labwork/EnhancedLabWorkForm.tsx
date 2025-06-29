@@ -21,9 +21,9 @@ import {
   User,
   Building2,
   ClipboardList,
-  Calculator,
-  Search
+  Calculator
 } from 'lucide-react';
+import { PatientSelector } from '@/components/common/PatientSelector';
 
 interface EnhancedLabWorkFormProps {
   open: boolean;
@@ -46,10 +46,8 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
-  const [patientSearchValue, setPatientSearchValue] = useState('');
   
   const [formData, setFormData] = useState({
-    patient_id: initialPatientId || '',
     treatment_id: initialTreatmentId || '',
     lab_type: '',
     lab_name: '',
@@ -70,7 +68,6 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
       const patient = patients.find(p => p.patient_id === initialPatientId);
       if (patient) {
         setSelectedPatient(patient);
-        setPatientSearchValue(patient.patient_id);
       }
     }
   }, [initialPatientId, patients]);
@@ -113,39 +110,6 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
       ...prev, 
       balance_remaining: balance.toFixed(2)
     }));
-  };
-
-  const handlePatientSearch = (patientCode: string) => {
-    const patient = patients.find(p => 
-      p.patient_id.toLowerCase() === patientCode.toLowerCase() ||
-      p.full_name.toLowerCase().includes(patientCode.toLowerCase())
-    );
-    
-    if (patient) {
-      setSelectedPatient(patient);
-      setFormData(prev => ({ ...prev, patient_id: patient.patient_id }));
-      toast({
-        title: "Patient Found",
-        description: `Linked to ${patient.full_name} (${patient.patient_id})`,
-      });
-    } else {
-      setSelectedPatient(null);
-      setFormData(prev => ({ ...prev, patient_id: '' }));
-      toast({
-        title: "Patient Not Found",
-        description: "Please check the patient code and try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handlePatientSearchInputChange = (value: string) => {
-    setPatientSearchValue(value);
-    // Clear selected patient if input is manually changed
-    if (selectedPatient && value !== selectedPatient.patient_id) {
-      setSelectedPatient(null);
-      setFormData(prev => ({ ...prev, patient_id: '' }));
-    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,7 +199,6 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
 
       // Reset form
       setFormData({
-        patient_id: initialPatientId || '',
         treatment_id: initialTreatmentId || '',
         lab_type: '',
         lab_name: '',
@@ -250,7 +213,6 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
       });
       setUploadedFiles([]);
       setSelectedPatient(null);
-      setPatientSearchValue('');
       onOpenChange(false);
 
     } catch (error) {
@@ -293,25 +255,14 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="patient-search" className="text-sm font-medium text-slate-700">Patient Code/Name *</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id="patient-search"
-                      placeholder="Enter patient code or name"
-                      value={patientSearchValue}
-                      onChange={(e) => handlePatientSearchInputChange(e.target.value)}
-                      className="border-slate-200 focus:border-blue-500"
-                    />
-                    <Button 
-                      type="button"
-                      variant="outline"
-                      onClick={() => handlePatientSearch(patientSearchValue)}
-                      className="px-3"
-                    >
-                      <Search className="w-4 h-4" />
-                    </Button>
-                  </div>
+                <div className="md:col-span-1">
+                  <PatientSelector
+                    selectedPatient={selectedPatient}
+                    onPatientSelect={setSelectedPatient}
+                    label="Patient"
+                    required={true}
+                    placeholder="Search by patient name or ID..."
+                  />
                 </div>
                 
                 <div className="space-y-2">
@@ -334,24 +285,6 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
                   </Select>
                 </div>
               </div>
-
-              {selectedPatient && (
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="text-sm">
-                    <strong>Linked Patient:</strong> {selectedPatient.full_name} | 
-                    <strong> Phone:</strong> {selectedPatient.mobile_number} | 
-                    <strong> ID:</strong> {selectedPatient.patient_id}
-                  </div>
-                </div>
-              )}
-
-              {!selectedPatient && patientSearchValue && (
-                <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                  <div className="text-sm text-red-700">
-                    <strong>Warning:</strong> No valid patient selected. Please search for and select a patient before submitting.
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -468,7 +401,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="total-cost" className="text-sm font-medium text-slate-700">Total Cost</Label>
                   <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">₹</span>
                     <Input 
                       id="total-cost" 
                       type="number"
@@ -484,7 +417,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="total-paid" className="text-sm font-medium text-slate-700">Total Paid</Label>
                   <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">₹</span>
                     <Input 
                       id="total-paid" 
                       type="number"
@@ -500,7 +433,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="balance-remaining" className="text-sm font-medium text-slate-700">Balance Remaining</Label>
                   <div className="relative">
-                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400">₹</span>
                     <Input 
                       id="balance-remaining" 
                       type="number"
@@ -526,8 +459,8 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
                       : 'text-green-800'
                   }`}>
                     {parseFloat(formData.balance_remaining) > 0 
-                      ? `Outstanding Balance: $${formData.balance_remaining}` 
-                      : `Overpaid: $${Math.abs(parseFloat(formData.balance_remaining)).toFixed(2)}`
+                      ? `Outstanding Balance: ₹${formData.balance_remaining}` 
+                      : `Overpaid: ₹${Math.abs(parseFloat(formData.balance_remaining)).toFixed(2)}`
                     }
                   </div>
                 </div>

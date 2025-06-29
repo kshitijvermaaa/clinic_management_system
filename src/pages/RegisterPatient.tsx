@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { UserPlus, Upload, Save, X } from 'lucide-react';
+import { UserPlus, Upload, Save, X, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -15,23 +15,112 @@ const RegisterPatient = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [phoneNumbers, setPhoneNumbers] = useState([{ id: 1, number: '', type: 'primary' }]);
+  
   const [formData, setFormData] = useState({
     fullName: '',
     gender: '',
     age: '',
     address: '',
-    mobileNumber: '',
     email: '',
     bloodGroup: '',
-    allergies: '',
+    allergies: [] as string[],
+    customAllergy: '',
     referredBy: '',
     emergencyContact: '',
-    chronicConditions: '',
+    chronicConditions: [] as string[],
+    customChronicCondition: '',
     insuranceDetails: '',
   });
 
-  const handleInputChange = (field: string, value: string) => {
+  // Predefined options
+  const commonAllergies = [
+    'Penicillin',
+    'Latex',
+    'Lidocaine',
+    'Aspirin',
+    'Ibuprofen',
+    'Sulfa drugs',
+    'Codeine',
+    'Morphine',
+    'Nickel',
+    'Adhesive tape',
+    'Food allergies',
+    'Seasonal allergies',
+    'No known allergies'
+  ];
+
+  const commonChronicConditions = [
+    'Diabetes',
+    'Hypertension',
+    'Heart disease',
+    'Asthma',
+    'Arthritis',
+    'Thyroid disorders',
+    'Kidney disease',
+    'Liver disease',
+    'Cancer',
+    'Depression',
+    'Anxiety',
+    'Osteoporosis',
+    'COPD',
+    'Epilepsy',
+    'No chronic conditions'
+  ];
+
+  const handleInputChange = (field: string, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePhoneNumberChange = (id: number, field: string, value: string) => {
+    setPhoneNumbers(prev => prev.map(phone => 
+      phone.id === id ? { ...phone, [field]: value } : phone
+    ));
+  };
+
+  const addPhoneNumber = () => {
+    const newId = Math.max(...phoneNumbers.map(p => p.id)) + 1;
+    setPhoneNumbers(prev => [...prev, { id: newId, number: '', type: 'secondary' }]);
+  };
+
+  const removePhoneNumber = (id: number) => {
+    if (phoneNumbers.length > 1) {
+      setPhoneNumbers(prev => prev.filter(phone => phone.id !== id));
+    }
+  };
+
+  const handleAllergySelect = (allergy: string) => {
+    if (!formData.allergies.includes(allergy)) {
+      handleInputChange('allergies', [...formData.allergies, allergy]);
+    }
+  };
+
+  const removeAllergy = (allergy: string) => {
+    handleInputChange('allergies', formData.allergies.filter(a => a !== allergy));
+  };
+
+  const addCustomAllergy = () => {
+    if (formData.customAllergy.trim() && !formData.allergies.includes(formData.customAllergy.trim())) {
+      handleInputChange('allergies', [...formData.allergies, formData.customAllergy.trim()]);
+      handleInputChange('customAllergy', '');
+    }
+  };
+
+  const handleChronicConditionSelect = (condition: string) => {
+    if (!formData.chronicConditions.includes(condition)) {
+      handleInputChange('chronicConditions', [...formData.chronicConditions, condition]);
+    }
+  };
+
+  const removeChronicCondition = (condition: string) => {
+    handleInputChange('chronicConditions', formData.chronicConditions.filter(c => c !== condition));
+  };
+
+  const addCustomChronicCondition = () => {
+    if (formData.customChronicCondition.trim() && !formData.chronicConditions.includes(formData.customChronicCondition.trim())) {
+      handleInputChange('chronicConditions', [...formData.chronicConditions, formData.customChronicCondition.trim()]);
+      handleInputChange('customChronicCondition', '');
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,10 +158,12 @@ const RegisterPatient = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.fullName || !formData.gender || !formData.age || !formData.address || !formData.mobileNumber) {
+    const primaryPhone = phoneNumbers.find(p => p.type === 'primary')?.number || phoneNumbers[0]?.number;
+    
+    if (!formData.fullName || !formData.gender || !formData.age || !formData.address || !primaryPhone) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields.",
+        description: "Please fill in all required fields including at least one phone number.",
         variant: "destructive",
       });
       return;
@@ -94,6 +185,12 @@ const RegisterPatient = () => {
     try {
       const dateOfBirth = calculateDateOfBirth(formData.age);
       
+      // Prepare phone numbers data
+      const phoneNumbersData = phoneNumbers
+        .filter(p => p.number.trim())
+        .map(p => `${p.type}: ${p.number}`)
+        .join(', ');
+      
       const { data, error } = await supabase
         .from('patients')
         .insert({
@@ -101,13 +198,13 @@ const RegisterPatient = () => {
           gender: formData.gender,
           date_of_birth: dateOfBirth,
           address: formData.address,
-          mobile_number: formData.mobileNumber,
+          mobile_number: phoneNumbersData,
           email: formData.email || null,
           blood_group: formData.bloodGroup || null,
-          allergies: formData.allergies || null,
+          allergies: formData.allergies.length > 0 ? formData.allergies.join(', ') : null,
           referred_by: formData.referredBy || null,
           emergency_contact: formData.emergencyContact || null,
-          chronic_conditions: formData.chronicConditions || null,
+          chronic_conditions: formData.chronicConditions.length > 0 ? formData.chronicConditions.join(', ') : null,
           insurance_details: formData.insuranceDetails || null,
         })
         .select()
@@ -134,15 +231,17 @@ const RegisterPatient = () => {
         gender: '',
         age: '',
         address: '',
-        mobileNumber: '',
         email: '',
         bloodGroup: '',
-        allergies: '',
+        allergies: [],
+        customAllergy: '',
         referredBy: '',
         emergencyContact: '',
-        chronicConditions: '',
+        chronicConditions: [],
+        customChronicCondition: '',
         insuranceDetails: '',
       });
+      setPhoneNumbers([{ id: 1, number: '', type: 'primary' }]);
       setUploadedFiles([]);
 
       // Navigate using the correct patient_id instead of UUID
@@ -268,21 +367,61 @@ const RegisterPatient = () => {
                 <CardHeader>
                   <CardTitle>Contact Information</CardTitle>
                   <CardDescription>
-                    Phone, email and emergency contact details
+                    Phone numbers, email and emergency contact details
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="mobileNumber">Mobile Number *</Label>
-                      <Input
-                        id="mobileNumber"
-                        value={formData.mobileNumber}
-                        onChange={(e) => handleInputChange('mobileNumber', e.target.value)}
-                        placeholder="+91 98765 43210"
-                        required
-                      />
+                  {/* Multiple Phone Numbers */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label>Phone Numbers *</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={addPhoneNumber}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Phone
+                      </Button>
                     </div>
+                    {phoneNumbers.map((phone, index) => (
+                      <div key={phone.id} className="flex gap-3 items-end">
+                        <div className="flex-1">
+                          <Input
+                            placeholder="+91 98765 43210"
+                            value={phone.number}
+                            onChange={(e) => handlePhoneNumberChange(phone.id, 'number', e.target.value)}
+                            required={index === 0}
+                          />
+                        </div>
+                        <div className="w-32">
+                          <Select 
+                            value={phone.type} 
+                            onValueChange={(value) => handlePhoneNumberChange(phone.id, 'type', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="primary">Primary</SelectItem>
+                              <SelectItem value="secondary">Secondary</SelectItem>
+                              <SelectItem value="home">Home</SelectItem>
+                              <SelectItem value="work">Work</SelectItem>
+                              <SelectItem value="emergency">Emergency</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {phoneNumbers.length > 1 && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => removePhoneNumber(phone.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="email">Email Address</Label>
                       <Input
@@ -291,18 +430,6 @@ const RegisterPatient = () => {
                         value={formData.email}
                         onChange={(e) => handleInputChange('email', e.target.value)}
                         placeholder="patient@example.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="emergencyContact">Emergency Contact</Label>
-                      <Input
-                        id="emergencyContact"
-                        value={formData.emergencyContact}
-                        onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
-                        placeholder="Name and phone number"
                       />
                     </div>
                     <div className="space-y-2">
@@ -314,6 +441,16 @@ const RegisterPatient = () => {
                         placeholder="Doctor or referral source"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="emergencyContact">Emergency Contact</Label>
+                    <Input
+                      id="emergencyContact"
+                      value={formData.emergencyContact}
+                      onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
+                      placeholder="Name and phone number"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -327,24 +464,96 @@ const RegisterPatient = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="allergies">Allergies</Label>
-                    <Textarea
-                      id="allergies"
-                      value={formData.allergies}
-                      onChange={(e) => handleInputChange('allergies', e.target.value)}
-                      placeholder="List any known allergies"
-                    />
+                  {/* Allergies */}
+                  <div className="space-y-4">
+                    <Label>Allergies</Label>
+                    <Select onValueChange={handleAllergySelect}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select common allergies" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {commonAllergies.map((allergy) => (
+                          <SelectItem key={allergy} value={allergy}>
+                            {allergy}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add custom allergy"
+                        value={formData.customAllergy}
+                        onChange={(e) => handleInputChange('customAllergy', e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomAllergy())}
+                      />
+                      <Button type="button" variant="outline" onClick={addCustomAllergy}>
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {formData.allergies.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.allergies.map((allergy) => (
+                          <div key={allergy} className="flex items-center gap-1 bg-red-50 text-red-700 px-2 py-1 rounded-md text-sm">
+                            {allergy}
+                            <button
+                              type="button"
+                              onClick={() => removeAllergy(allergy)}
+                              className="ml-1 hover:text-red-900"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="chronicConditions">Chronic Conditions</Label>
-                    <Textarea
-                      id="chronicConditions"
-                      value={formData.chronicConditions}
-                      onChange={(e) => handleInputChange('chronicConditions', e.target.value)}
-                      placeholder="Diabetes, hypertension, etc."
-                    />
+                  {/* Chronic Conditions */}
+                  <div className="space-y-4">
+                    <Label>Chronic Conditions</Label>
+                    <Select onValueChange={handleChronicConditionSelect}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select common chronic conditions" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {commonChronicConditions.map((condition) => (
+                          <SelectItem key={condition} value={condition}>
+                            {condition}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add custom chronic condition"
+                        value={formData.customChronicCondition}
+                        onChange={(e) => handleInputChange('customChronicCondition', e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomChronicCondition())}
+                      />
+                      <Button type="button" variant="outline" onClick={addCustomChronicCondition}>
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {formData.chronicConditions.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.chronicConditions.map((condition) => (
+                          <div key={condition} className="flex items-center gap-1 bg-orange-50 text-orange-700 px-2 py-1 rounded-md text-sm">
+                            {condition}
+                            <button
+                              type="button"
+                              onClick={() => removeChronicCondition(condition)}
+                              className="ml-1 hover:text-orange-900"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
