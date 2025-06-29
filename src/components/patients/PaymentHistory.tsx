@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { CreditCard, Plus, Receipt, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -151,12 +151,12 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ patientId }) => 
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+              <DialogHeader>
                 <DialogTitle>Record Payment</DialogTitle>
                 <DialogDescription>
                   Add a new payment record for this patient
                 </DialogDescription>
-              </div>
+              </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="amount">Amount (₹)</Label>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -232,7 +232,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left pb-4">
+        <DialogHeader className="pb-4">
           <DialogTitle className="flex items-center gap-3 text-xl">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
               <FlaskConical className="w-5 h-5 text-white" />
@@ -242,7 +242,7 @@ export const EnhancedLabWorkForm: React.FC<EnhancedLabWorkFormProps> = ({
           <DialogDescription className="text-slate-600">
             Submit work to dental laboratory with detailed specifications and simplified cost tracking.
           </DialogDescription>
-        </div>
+        </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Patient Linkage */}

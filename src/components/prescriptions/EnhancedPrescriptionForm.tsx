@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,7 +39,7 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
   const { treatments } = useTreatments();
   const { createPrescription } = usePrescriptions();
   
-  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [selectedPatient, setSelectedPatient] =  useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -163,7 +163,7 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
             Create New Prescription
@@ -171,7 +171,7 @@ export const EnhancedPrescriptionForm: React.FC<EnhancedPrescriptionFormProps> =
           <DialogDescription>
             Add patient information, diagnosis, and medication details.
           </DialogDescription>
-        </div>
+        </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Patient Information */}

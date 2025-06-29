@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -168,12 +168,12 @@ export const PrescriptionViewer: React.FC<PrescriptionViewerProps> = ({ open, on
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
             Prescription Details
           </DialogTitle>
-        </div>
+        </DialogHeader>
         
         <div className="space-y-6">
           {/* Header */}

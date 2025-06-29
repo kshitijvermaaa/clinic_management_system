@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertTriangle, Calendar as CalendarIcon, Users, ArrowRight, X } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -178,12 +178,12 @@ export const ClinicClosureManager: React.FC = () => {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
-                  <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+                  <DialogHeader>
                     <DialogTitle>Emergency Clinic Closure</DialogTitle>
                     <DialogDescription>
                       Manage appointments for {format(closureDate!, 'PPP')}
                     </DialogDescription>
-                  </div>
+                  </DialogHeader>
                   
                   <div className="space-y-4">
                     <div>

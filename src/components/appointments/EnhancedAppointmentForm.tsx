@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -128,7 +128,7 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left pb-4">
+        <DialogHeader className="pb-4">
           <DialogTitle className="flex items-center gap-3 text-xl">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
               <CalendarDays className="w-5 h-5 text-white" />
@@ -138,7 +138,7 @@ export const EnhancedAppointmentForm: React.FC<EnhancedAppointmentFormProps> = (
           <DialogDescription className="text-slate-600">
             Complete patient information and treatment details for the appointment.
           </DialogDescription>
-        </div>
+        </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Patient Information */}

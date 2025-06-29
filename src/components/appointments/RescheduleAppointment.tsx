@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CalendarIcon, Clock, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -95,7 +95,7 @@ export const RescheduleAppointment: React.FC<RescheduleAppointmentProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-blue-600" />
             Reschedule Appointment
@@ -103,7 +103,7 @@ export const RescheduleAppointment: React.FC<RescheduleAppointmentProps> = ({
           <DialogDescription>
             Change the date and time for this appointment
           </DialogDescription>
-        </div>
+        </DialogHeader>
         
         <div className="space-y-6">
           {/* Current Appointment Info */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -134,7 +134,7 @@ export const LabWorkFilesDialog: React.FC<LabWorkFilesDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-purple-600" />
             Lab Work Files
@@ -142,7 +142,7 @@ export const LabWorkFilesDialog: React.FC<LabWorkFilesDialogProps> = ({
           <DialogDescription>
             Files for: {labWorkTitle}
           </DialogDescription>
-        </div>
+        </DialogHeader>
         
         <div className="space-y-6">
           {/* Upload Section */}
